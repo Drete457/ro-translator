@@ -8,6 +8,9 @@
   "scripts": {
     "start": "node src/bot.js"
   },
+  "engines": {
+    "node": "16.x"
+  },
   "dependencies": {
     "discord.js": "^14.13.0",
     "google-translate-api-x": "^10.6.7",
