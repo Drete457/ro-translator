@@ -1,0 +1,16 @@
+{
+  "name": "ro-translator",
+  "version": "0.0.1",
+  "main": "src/bot.js",
+  "repository": "https://github.com/Drete457/ro-translator.git",
+  "author": "Filipe Mota <nada.geral@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.13.0",
+    "google-translate-api-x": "^10.6.7",
+    "node-fetch": "2"
+  }
+}
