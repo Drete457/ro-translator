@@ -9,7 +9,6 @@ const {
 const fetch = require("node-fetch");
 const translate = require("google-translate-api-x");
 const countries = require("./countries");
-const fetchBuilderOptions = require("./fetch-builder");
 
 const intents = [
     GatewayIntentBits.Guilds,
