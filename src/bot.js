@@ -9,7 +9,6 @@ const {
 const fetch = require("node-fetch");
 const translate = require("google-translate-api-x");
 const countries = require("./countries");
-const pingGoogle = require("./ping-google");
 
 const intents = [
     GatewayIntentBits.Guilds,
@@ -89,4 +88,3 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 });
 
 client.login(token);
-pingGoogle();
