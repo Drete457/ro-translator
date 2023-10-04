@@ -9,6 +9,7 @@ const {
 const fetch = require("node-fetch");
 const translate = require("google-translate-api-x");
 const countries = require("./countries");
+const { init, chat, characterAiActive } = require("./characterai");
 
 const intents = [
     GatewayIntentBits.Guilds,
@@ -26,8 +27,16 @@ const token = process.env.discord_key;
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
-    if (message.channel.type === ChannelType.DM)
-        message.author.send("Hi, thanks for sending me a private message. I appreciate your interest to speak with me. However, I'm not able to respond to questions, comments or information. Please use the appropriate channel on the server to communicate with your colleagues. Thank you for your understanding and cooperation.");
+    if (message.channel.type === ChannelType.DM) {
+        if (characterAiActive) {
+            chat(message.content)
+                .then((res) => message.author.send(res))
+                .catch(() => message.author.send("Hi, thanks for sending me a private message. I appreciate your interest to speak with me. However, I'm not able to respond right now, try later. Thank you for your understanding and cooperation."));
+            return;
+        }
+    }
+
+    message.author.send("Hi, thanks for sending me a private message. I appreciate your interest to speak with me. However, I'm not able to respond to questions, comments or information at the moment, my Ai is disable for now. Please use the appropriate channel on the server to communicate with your colleagues. Thank you for your understanding and cooperation.");
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
@@ -88,3 +97,4 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 });
 
 client.login(token);
+init();
