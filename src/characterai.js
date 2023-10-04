@@ -1,8 +1,8 @@
 const CharacterAI = require("node_characterai");
 const characterAI = new CharacterAI();
 
-const characterId = process.env.characterId;
-const access_Token = process.env.access_Token_ai;
+const characterId = process.env.character_id;
+const access_Token = process.env.access_token_ai;
 let characterAiActive = false;
 let chat;
 
@@ -14,7 +14,7 @@ const characterAiInit = async () => {
         characterAiActive = true
         chat = resp;
     }).catch(() => console.log("Error creating or continuing chat"));
-
+    
     console.log("CharacterAi init finished, is active? ", characterAiActive);
 };
 
