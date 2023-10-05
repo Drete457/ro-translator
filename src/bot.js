@@ -1,3 +1,4 @@
+require('dotenv').config();
 const {
     Client,
     GatewayIntentBits,
@@ -9,7 +10,8 @@ const {
 const fetch = require("node-fetch");
 const translate = require("google-translate-api-x");
 const countries = require("./countries");
-const { init, chat, characterAiActive } = require("./characterai");
+const { discordToken } = require("./env-variables");
+const { init, chat } = require("./characterai");
 
 const intents = [
     GatewayIntentBits.Guilds,
@@ -22,20 +24,12 @@ const intents = [
 const partials = [Partials.Message, Partials.Channel, Partials.Reaction];
 
 const client = new Client({ intents, partials });
-const token = process.env.discord_key;
 
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
-    if (message.channel.type === ChannelType.DM) {
-        if (characterAiActive) {
-            chat(message.content)
-                .then((res) => message.author.send(res))
-                .catch(() => message.author.send("Hi, thanks for sending me a private message. I appreciate your interest to speak with me. However, I'm not able to respond right now, try later. Thank you for your understanding and cooperation."));
-            return;
-        }
-        message.author.send("Hi, thanks for sending me a private message. I appreciate your interest to speak with me. However, I'm not able to respond to questions, comments or information at the moment, my Ai is disable for now. Please use the appropriate channel on the server to communicate with your colleagues. Thank you for your understanding and cooperation.");
-    }
+    if (message.channel.type === ChannelType.DM)
+        message.author.send(await chat(message.content));
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
@@ -46,7 +40,6 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         try {
             await reaction.fetch();
         } catch (error) {
-            console.error("Something went wrong when fetching the message:", error);
             user.send(
                 quote(messageToTranslate) +
                 " \n\n " +
@@ -89,11 +82,11 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
             user.send(
                 quote(messageToTranslate) +
                 " \n\n " +
-                `Error: It is not possible to translate into language for the country ${countryInformation.name}` +
+                `Error: It is not possible to translate the language of this country ${countryInformation.name}` +
                 " \n\n "
             )
         );
 });
 
-client.login(token);
+client.login(discordToken);
 init();
