@@ -70,7 +70,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         return;
 
     await translate(messageToTranslate, {
-        to: countryInformation.code,
+        to: countryInformation.langs[0],
         forceBatch: false,
         autoCorrect: true,
         requestFunction: fetch,

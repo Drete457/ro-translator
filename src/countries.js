@@ -1155,6 +1155,11 @@ module.exports = {
       name: "United Arab Emirates",
       langs: ["ar"]
    },
+   "🏴󠁧󠁢󠁥󠁮󠁧󠁿": {
+      code: "gb",
+      name: "England",
+      langs: ["en"]
+   },
    "🇬🇧": {
       code: "gb",
       name: "United Kingdom",
