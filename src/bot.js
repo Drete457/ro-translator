@@ -80,4 +80,4 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 });
 
 client.login(discordToken);
-//init();
+init();
