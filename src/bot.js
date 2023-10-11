@@ -40,12 +40,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         try {
             await reaction.fetch();
         } catch (error) {
-            user.send(
-                quote(messageToTranslate) +
-                " \n\n " +
-                `Error: It is no longer possible to translate this message` +
-                " \n\n "
-            );
+            console.log("Something went wrong when fetching the message: ", error);
             return;
         }
     }
@@ -53,12 +48,8 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     const reactionName = reaction.emoji.name;
     const countryInformation = countries[reactionName];
 
-    if (countryInformation === undefined || countryInformation === null) {
-        user.send(
-            `Error: The country ${reactionName} is not available for translation \n Please, try again with another country \n\n`
-        );
+    if (countryInformation === undefined || countryInformation === null)
         return;
-    }
 
     const messageToTranslate = reaction.message.content;
 
@@ -76,7 +67,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         requestFunction: fetch,
     })
         .then((res) =>
-            user.send(quote(messageToTranslate) + " \n\n " + res.text + " \n\n ")
+            user.send(quote(messageToTranslate) + " \n\n " + res.text + " \n\n ").catch(() => console.log("Error sending message to user: ", user + " \n\n"))
         )
         .catch(() =>
             user.send(
@@ -84,9 +75,9 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
                 " \n\n " +
                 `Error: It is not possible to translate the language of this country ${countryInformation.name}` +
                 " \n\n "
-            )
+            ).catch(() => console.log("Error sending message to user: ", user + " \n\n"))
         );
 });
 
 client.login(discordToken);
-init();
+//init();
