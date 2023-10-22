@@ -10,10 +10,10 @@ const {
 const { init, chat } = require("./characterai");
 const translate = require("google-translate-api-x");
 const fetch = require("node-fetch");
-const countries = require("./countries");
 const { discordToken, channelWithImage } = require("./env-variables");
-const { ocrImageToText } = require('./ocr-image-to-text');
+const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
 const { richMessage } = require('./discord-custom-messages');
+const countries = require("./countries");
 
 const isInDevelopment = process.env.NODE_ENV === "development";
 
@@ -35,17 +35,16 @@ client.on(Events.MessageCreate, async (message) => {
     if (message.channel.id === channelWithImage) {
         if (message.attachments.size > 0) {
             const originalChannel = client.channels.cache.get(channelWithImage);
-            const logChannel = client.channels.cache.get("1158396135107481630");
+          
             const attachment = message.attachments.forEach(async (attachment) => {
                 if (!attachment.contentType.startsWith('image')) return;
 
                 await ocrImageToText(attachment.url).then(resp => {
-                    const parsedText = resp.replace(/\n/g, ' ');
-                    logChannel.send(parsedText, { tts: true });
-                }).catch(() => {
+                    const responseFilterAndClean = filterResponse(resp);
+                    writePlayerInfoToGoogleSheet(responseFilterAndClean);
+                }).catch((e) => {
                     const userName = message.author.username;
-
-                    originalChannel.send(richMessage(userName)).catch(() => console.log("Error sending message to channel: ", canal + " \n\n"))
+                    originalChannel.send(richMessage(userName, e.message)).catch(() => console.log("Error sending message to channel: ", canal + " \n\n"))
                 });
             });
         }
