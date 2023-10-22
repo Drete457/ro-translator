@@ -32,7 +32,7 @@ const client = new Client({ intents, partials });
 client.on(Events.MessageCreate, async (message) => {
     if (!isInDevelopment && message.author.bot) return;
 
-    if (message.channel.id === channelWithImage) {
+    /* if (message.channel.id === channelWithImage) {
         if (message.attachments.size > 0) {
             const originalChannel = client.channels.cache.get(channelWithImage);
           
@@ -48,7 +48,7 @@ client.on(Events.MessageCreate, async (message) => {
                 });
             });
         }
-    }
+    } */
 
     if (!isInDevelopment && message.channel.type === ChannelType.DM)
         message.author.send(await chat(message.content));
