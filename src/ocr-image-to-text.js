@@ -1,31 +1,11 @@
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
+const https = require('https');
+const path = require('path');
+const fs = require('fs');
+const sharp = require('sharp');
+const FormData = require('form-data');
 const { ocrSpaceApiKey, googleSheetId, googleClientEmail, googlePrivateKey } = require("./env-variables");
-
-const ocrSpaceApiUrl = "https://api.ocr.space/parse/imageUrl";
-const ocrImageToText = (imagePath) => {
-    const urlParams = new URLSearchParams({
-        apikey: ocrSpaceApiKey,
-        url: imagePath,
-        language: "eng",
-        detectOrientation: true,
-        isOverlayRequired: true,
-        isTable: true,
-        scale: true,
-        OCREngine: 2,
-    });
-
-    return fetch(`${ocrSpaceApiUrl}?${urlParams}`, {
-        method: "GET",
-    })
-        .then((res) => res.json())
-        .then((json) => {
-            if (Object.keys(json).includes('ErrorMessage')) throw new Error(json.ErrorMessage);
-
-            return json.ParsedResults[0].ParsedText
-        })
-        .catch((e) => { throw new Error(e.message) });
-};
 
 const filterResponse = (response) => {
     const playerInfo = {
@@ -51,13 +31,13 @@ const filterResponse = (response) => {
     if (allianceMatch)
         playerInfo.alliance = allianceMatch[1];
 
-    const powerMatch = response.match(/Merits\s+([\d,]+)\s+([\d,]+)/);
+    const powerMatch = response.match(/Merit+\s+([\d,]+)\s+([\d,]+)/);
     if (powerMatch) {
         playerInfo.power = powerMatch[1];
         playerInfo.merits = powerMatch[2];
     }
 
-    if (Object.values(playerInfo).some(value => value === null)) throw new Error("Error parsing image");
+    if (Object.values(playerInfo).some(value => value === null)) throw new Error("Error reading the information from the image");
 
     return playerInfo;
 };
@@ -78,4 +58,84 @@ const writePlayerInfoToGoogleSheet = async (playerInfo) => {
     await sheet.addRow(playerInfo).catch((e) => { throw new Error(e.message) });
 };
 
-module.exports = { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet };
+const options = {
+    quality: 70,
+    size: 1000000,
+};
+const downloadTheFileAndCreateTheBufferString = (imageName, imagePath) => {
+    return new Promise((resolve, reject) => {
+        const saveDir = './images';
+
+        if (!fs.existsSync(saveDir)) {
+            fs.mkdirSync(saveDir);
+        }
+
+        const pathOfTheImage = path.join(saveDir, imageName);
+        const filePath = fs.createWriteStream(pathOfTheImage);
+
+        https.get(imagePath, (res) => {
+            res.pipe(filePath);
+            filePath.on('finish', () => {
+                filePath.close();
+
+                fs.readFile(pathOfTheImage, (err, data) => {
+                    if (err) {
+                        reject(new Error("Impossible to read the image, try again"));
+                        return;
+                    }
+
+                    sharp(data)
+                        .resize({ fit: 'inside' })
+                        .jpeg(options)
+                        .toBuffer((_, buffer) => {
+                            if (err) {
+                                reject(new Error('Image is to big to be compressed'));
+                                return;
+                            }
+                            const imageFileCompressedPath = path.join(saveDir, `compressed-${imageName}`);
+
+                            fs.writeFileSync(imageFileCompressedPath, buffer);
+
+                            resolve(buffer.toString('base64'));
+                            fs.unlinkSync(pathOfTheImage);
+                            fs.unlinkSync(imageFileCompressedPath);
+                        });
+                });
+            })
+        })
+    });
+};
+
+const ocrSpaceApiUrl = "https://api.ocr.space/parse/image";
+const ocrImageToText = (imageName, imagePath) => {
+    return downloadTheFileAndCreateTheBufferString(imageName, imagePath).then((buffer) => {
+        const base64Image = `data:image/jpeg;base64,${buffer}`;
+
+        const formData = new FormData();
+        formData.append('base64Image', base64Image);
+        formData.append('language', 'eng');
+        formData.append('detectOrientation', "true");
+        formData.append('isOverlayRequired', "true");
+        formData.append('isTable', "true");
+        formData.append('scale', "true");
+        formData.append('iscreatesearchablepdf', "false");
+        formData.append('issearchablepdfhidetextlayer', "false");
+        formData.append('OCREngine', 2);
+
+        return fetch(ocrSpaceApiUrl, {
+            method: "POST",
+            headers: {
+                'apikey': ocrSpaceApiKey,
+                ...formData.getHeaders(),
+            },
+            body: formData.getBuffer(),
+        }).then((res) => res.json()).then((json) => {
+            if (Object.keys(json).includes('ErrorMessage')) throw new Error(json.ErrorMessage);
+            return json.ParsedResults[0].ParsedText
+        }).catch((e) => { throw new Error(e.message) });
+    }).catch((e) => { throw new Error(e.message) });
+};
+
+
+
+module.exports = { filterResponse, writePlayerInfoToGoogleSheet, downloadTheFileAndCreateTheBufferString, ocrImageToText };

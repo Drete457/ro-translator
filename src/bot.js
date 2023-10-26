@@ -32,15 +32,25 @@ const client = new Client({ intents, partials });
 client.on(Events.MessageCreate, async (message) => {
     if (!isInDevelopment && message.author.bot) return;
 
-    /* if (message.channel.id === channelWithImage) {
+    if (message.channel.id === channelWithImage) {
         if (message.attachments.size > 0) {
             const originalChannel = client.channels.cache.get(channelWithImage);
-          
+
             const attachment = message.attachments.forEach(async (attachment) => {
                 if (!attachment.contentType.startsWith('image')) return;
 
-                await ocrImageToText(attachment.url).then(resp => {
-                    const responseFilterAndClean = filterResponse(resp);
+                await ocrImageToText(attachment.name, attachment.url).then(async (resp) => {
+                    const result = await translate(resp, {
+                        to: "en",
+                        forceBatch: false,
+                        autoCorrect: false,
+                        requestFunction: fetch,
+                    })
+                        .then((res) => res.text)
+                        .catch(() => { throw new Error("It is not possible to translate from your language, please take the print-screen in English") });
+
+                    const responseFilterAndClean = filterResponse(result);
+
                     writePlayerInfoToGoogleSheet(responseFilterAndClean);
                 }).catch((e) => {
                     const userName = message.author.username;
@@ -48,7 +58,7 @@ client.on(Events.MessageCreate, async (message) => {
                 });
             });
         }
-    } */
+    }
 
     if (!isInDevelopment && message.channel.type === ChannelType.DM)
         message.author.send(await chat(message.content));

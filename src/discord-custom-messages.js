@@ -1,5 +1,5 @@
 const richMessage = (userName, errorMessage) => ({
-    content: `Hello @${userName}! **Opening the game on your cell phone and taking a print-screen!. The game need to be in English!!** and then send the print-screen here in the chat. \nError: ${errorMessage}`,
+    content: `Hello @${userName}! **Opening the game on your smartphone and taking a print-screen!. The game in English gives the best result!!** and then send the print-screen here in the chat. \nError: ${errorMessage}`,
     embeds: [
         {
             title: 'Explanation',
