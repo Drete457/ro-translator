@@ -31,12 +31,13 @@ const filterResponse = (response) => {
     if (allianceMatch)
         playerInfo.alliance = allianceMatch[1];
 
-    const powerMatch = response.match(/Merit+\s+([\d,]+)\s+([\d,]+)/);
+    const powerMatch = response.match(/Merits?\s+([\d,]+)\s+([\d,]+)/);
     if (powerMatch) {
         playerInfo.power = powerMatch[1];
         playerInfo.merits = powerMatch[2];
     }
-
+console.log("response", response)
+console.log("playerInfo", playerInfo)
     if (Object.values(playerInfo).some(value => value === null)) throw new Error("Error reading the information from the image");
 
     return playerInfo;
