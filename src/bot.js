@@ -7,112 +7,118 @@ const {
     ChannelType,
     quote,
 } = require("discord.js");
-const { init, chat } = require("./characterai");
-const translate = require("google-translate-api-x");
-const fetch = require("node-fetch");
-const { discordToken, channelWithImage } = require("./env-variables");
-const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
-const { richMessage } = require('./discord-custom-messages');
-const countries = require("./countries");
 
-const isInDevelopment = process.env.NODE_ENV === "development";
+try {
+    const { init, chat } = require("./characterai");
+    const translate = require("google-translate-api-x");
+    const fetch = require("node-fetch");
+    const { discordToken, channelWithImage } = require("./env-variables");
+    const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
+    const { richMessage } = require('./discord-custom-messages');
+    const countries = require("./countries");
 
-const intents = [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
-];
-const partials = [Partials.Message, Partials.Channel, Partials.Reaction];
+    const isInDevelopment = process.env.NODE_ENV === "development";
 
-const client = new Client({ intents, partials });
+    const intents = [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+    ];
+    const partials = [Partials.Message, Partials.Channel, Partials.Reaction];
 
-client.on(Events.MessageCreate, async (message) => {
-    if (!isInDevelopment && message.author.bot) return;
+    const client = new Client({ intents, partials });
 
-    if (message.channel.id === channelWithImage) {
-        if (message.attachments.size > 0) {
-            const originalChannel = client.channels.cache.get(channelWithImage);
+    client.on(Events.MessageCreate, async (message) => {
+        if (!isInDevelopment && message.author.bot) return;
 
-            const attachment = message.attachments.forEach(async (attachment) => {
-                if (!attachment.contentType.startsWith('image')) return;
+        if (message.channel.id === channelWithImage) {
+            if (message.attachments.size > 0) {
+                const originalChannel = client.channels.cache.get(channelWithImage);
 
-                await ocrImageToText(attachment.name, attachment.url).then(async (resp) => {
-                    const result = await translate(resp, {
-                        to: "en",
-                        forceBatch: false,
-                        autoCorrect: false,
-                        requestFunction: fetch,
-                    })
-                        .then((res) => res.text)
-                        .catch(() => { throw new Error("It is not possible to translate from your language, please take the print-screen in English") });
+                const attachment = message.attachments.forEach(async (attachment) => {
+                    if (!attachment.contentType.startsWith('image')) return;
 
-                    const responseFilterAndClean = filterResponse(result);
+                    await ocrImageToText(attachment.name, attachment.url).then(async (resp) => {
+                        const result = await translate(resp, {
+                            to: "en",
+                            forceBatch: false,
+                            autoCorrect: false,
+                            requestFunction: fetch,
+                        })
+                            .then((res) => res.text)
+                            .catch(() => { throw new Error("It is not possible to translate from your language, please take the print-screen in English") });
 
-                    writePlayerInfoToGoogleSheet(responseFilterAndClean);
-                }).catch((e) => {
-                    const userName = message.author.username;
-                    originalChannel.send(richMessage(userName, e.message)).catch(() => console.log("Error sending message to channel: ", canal + " \n\n"))
+                        const responseFilterAndClean = filterResponse(result);
+
+                        writePlayerInfoToGoogleSheet(responseFilterAndClean);
+                    }).catch((e) => {
+                        const userName = message.author.username;
+                        originalChannel.send(richMessage(userName, e.message)).catch(() => console.log("Error sending message to channel: ", canal + " \n\n"))
+                    });
                 });
-            });
-        }
-    }
-
-    if (!isInDevelopment && message.channel.type === ChannelType.DM)
-        message.author.send(await chat(message.content));
-});
-
-client.on(Events.MessageReactionAdd, async (reaction, user) => {
-    if (!isInDevelopment) {
-        if (user.bot) return;
-        if (typeof reaction.emoji.name !== "string") return;
-
-        if (reaction.partial) {
-            try {
-                await reaction.fetch();
-            } catch (error) {
-                console.log("Something went wrong when fetching the message: ", error);
-                return;
             }
         }
 
-        const reactionName = reaction.emoji.name;
-        const countryInformation = countries[reactionName];
+        if (!isInDevelopment && message.channel.type === ChannelType.DM)
+            message.author.send(await chat(message.content));
+    });
 
-        if (countryInformation === undefined || countryInformation === null)
-            return;
+    client.on(Events.MessageReactionAdd, async (reaction, user) => {
+        if (!isInDevelopment) {
+            if (user.bot) return;
+            if (typeof reaction.emoji.name !== "string") return;
 
-        const messageToTranslate = reaction.message.content;
+            if (reaction.partial) {
+                try {
+                    await reaction.fetch();
+                } catch (error) {
+                    console.log("Something went wrong when fetching the message: ", error);
+                    return;
+                }
+            }
 
-        if (
-            messageToTranslate === undefined ||
-            messageToTranslate === null ||
-            messageToTranslate === ""
-        )
-            return;
+            const reactionName = reaction.emoji.name;
+            const countryInformation = countries[reactionName];
 
-        await translate(messageToTranslate, {
-            to: countryInformation.langs[0],
-            forceBatch: false,
-            autoCorrect: true,
-            requestFunction: fetch,
-        })
-            .then((res) =>
-                user.send(quote(messageToTranslate) + " \n\n " + res.text + " \n\n ").catch(() => console.log("Error sending message to user: ", user + " \n\n"))
+            if (countryInformation === undefined || countryInformation === null)
+                return;
+
+            const messageToTranslate = reaction.message.content;
+
+            if (
+                messageToTranslate === undefined ||
+                messageToTranslate === null ||
+                messageToTranslate === ""
             )
-            .catch(() =>
-                user.send(
-                    quote(messageToTranslate) +
-                    " \n\n " +
-                    `Error: It is not possible to translate the language of this country ${countryInformation.name}` +
-                    " \n\n "
-                ).catch(() => console.log("Error sending message to user: ", user + " \n\n"))
-            );
-    }
-});
+                return;
 
-client.login(discordToken);
-if (!isInDevelopment)
-    init();
+            await translate(messageToTranslate, {
+                to: countryInformation.langs[0],
+                forceBatch: false,
+                autoCorrect: true,
+                requestFunction: fetch,
+            })
+                .then((res) =>
+                    user.send(quote(messageToTranslate) + " \n\n " + res.text + " \n\n ").catch(() => console.log("Error sending message to user: ", user + " \n\n"))
+                )
+                .catch(() =>
+                    user.send(
+                        quote(messageToTranslate) +
+                        " \n\n " +
+                        `Error: It is not possible to translate the language of this country ${countryInformation.name}` +
+                        " \n\n "
+                    ).catch(() => console.log("Error sending message to user: ", user + " \n\n"))
+                );
+        }
+    });
+
+    client.login(discordToken);
+    if (!isInDevelopment)
+        init();
+    
+} catch (e) {
+    console.log("The bot crashed: ", e);
+}
