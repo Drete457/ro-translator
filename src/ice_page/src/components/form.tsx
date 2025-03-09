@@ -1,4 +1,4 @@
-import { ChangeEvent, FC, FormEvent, useState } from 'react';
+import { ChangeEvent, FC, FormEvent, useState, useEffect } from 'react';
 import {
   Typography,
   TextField,
@@ -21,7 +21,7 @@ const Form: FC<FormProps> = ({
   selectedFaction,
   setSelectedFaction
 }) => {
-  const [formData, setFormData] = useState<PlayerFormData>(FormInitialData);
+  const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -41,6 +41,24 @@ const Form: FC<FormProps> = ({
     saveToDatabase(formData);
     alert('Army data submitted successfully!');
   };
+
+  useEffect(() => {
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    const date = new Date();
+    const offsetMinutes = -date.getTimezoneOffset();
+    const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+    const offsetMinutesPart = Math.abs(offsetMinutes) % 60;
+    const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+    const offsetFormatted = `${offsetSign}${offsetHours.toString().padStart(2, '0')}:${offsetMinutesPart.toString().padStart(2, '0')}`;
+
+    const timeZoneWithOffset = `${browserTimeZone} (UTC${offsetFormatted})`;
+
+    setFormData(prev => ({
+      ...prev,
+      timeZone: timeZoneWithOffset
+    }));
+  }, []);
 
   return (
     <>
@@ -124,6 +142,35 @@ const Form: FC<FormProps> = ({
                   name="power"
                   type="number"
                   value={formData.power}
+                  onChange={handleChange}
+                  sx={{
+                    '& .MuiInputBase-input': { color: 'white' },
+                    '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
+                      '&:hover fieldset': { borderColor: 'lightblue' },
+                    }
+                  }}
+                />
+              </Stack>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
+          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+            Time Zone
+          </Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <Stack spacing={1} alignItems="center">
+                <TextField
+                  required
+                  fullWidth
+                  id="timeZone"
+                  label="Time Zone"
+                  name="timeZone"
+                  value={formData.timeZone}
                   onChange={handleChange}
                   sx={{
                     '& .MuiInputBase-input': { color: 'white' },

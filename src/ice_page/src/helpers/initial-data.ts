@@ -1,9 +1,11 @@
 import { PlayerFormData } from "../types";
 
 const FormInitialData: PlayerFormData = Object.freeze({
-  userId: '',
+  userId: 0,
   userName: '',
   power: 0,
+  faction: '',
+  timeZone: '',
   t1InfantryCount: 0,
   t2InfantryCount: 0,
   t3InfantryCount: 0,

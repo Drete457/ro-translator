@@ -1,7 +1,9 @@
 interface PlayerFormData {
-  userId: string;
+  userId: number;
   userName: string;
   power: number;
+  faction: string;
+  timeZone: string;
   t1InfantryCount: number;
   t2InfantryCount: number;
   t3InfantryCount: number;
