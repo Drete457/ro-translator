@@ -16,52 +16,67 @@ interface FactionData {
   [Faction.Springwardens]: {
     [UnitType.Infantry]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Mages]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Archers]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Cavalry]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Flying]: {
       name: string;
+      imgUrl: string;
     }
   };
   [Faction.LeagueOfOrder]: {
     [UnitType.Infantry]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Mages]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Archers]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Cavalry]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Flying]: {
       name: string;
+      imgUrl: string;
     }
   };
   [Faction.Wilderburg]: {
     [UnitType.Infantry]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Mages]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Archers]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Cavalry]: {
       name: string;
+      imgUrl: string;
     },
     [UnitType.Flying]: {
       name: string;
+      imgUrl: string;
     }
   };
 }

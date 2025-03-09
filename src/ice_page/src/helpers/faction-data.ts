@@ -1,55 +1,71 @@
+import { Archers, Axemen, Ballistas, Celestials, Elk_Riders, Forest_Eagles, Ironbark_Treants, Knights, Longleaf_Treants, Satyr_Witches, Spearmen, Swordsmen, Vestals, Wolf_Riders, Wyvern_Riders } from "../assets/units";
 import { Faction, FactionData, UnitType } from "../types";
 
 const factionData: FactionData = Object.freeze({
   [Faction.Springwardens]: {
     [UnitType.Infantry]: {
-      name: 'Ironbark Treants'
+      name: 'Ironbark Treants',
+      imgUrl: Ironbark_Treants
     },
     [UnitType.Mages]: {
-      name: 'Longleaf Treants'
+      name: 'Longleaf Treants',
+imgUrl: Longleaf_Treants
     },
     [UnitType.Archers]: {
-      name: 'Archers'
+      name: 'Archers',
+      imgUrl: Archers
     },
     [UnitType.Cavalry]: {
-      name: 'Elk Riders'
+      name: 'Elk Riders',
+      imgUrl: Elk_Riders
     },
     [UnitType.Flying]: {
-      name: 'Forest Eagles'
+      name: 'Forest Eagles',
+      imgUrl: Forest_Eagles
     }
   },
   [Faction.LeagueOfOrder]: {
     [UnitType.Infantry]: {
-      name: 'Swordsmen'
+      name: 'Swordsmen',
+      imgUrl: Swordsmen
     },
     [UnitType.Mages]: {
-      name: 'Vestals'
+      name: 'Vestals',
+      imgUrl: Vestals
     },
     [UnitType.Archers]: {
-      name: 'Ballistas'
+      name: 'Ballistas',
+      imgUrl: Ballistas
     },
     [UnitType.Cavalry]: {
-      name: 'Knights'
+      name: 'Knights',
+      imgUrl: Knights
     },
     [UnitType.Flying]: {
-      name: 'Celestials'
+      name: 'Celestials',
+      imgUrl: Celestials
     }
   },
   [Faction.Wilderburg]: {
     [UnitType.Infantry]: {
-      name: 'Axemen'
+      name: 'Axemen',
+      imgUrl: Axemen
     },
     [UnitType.Mages]: {
-      name: 'Satyr Witches'
+      name: 'Satyr Witches',
+      imgUrl: Satyr_Witches
     },
     [UnitType.Archers]: {
-      name: 'Spearmen'
+      name: 'Spearmen',
+      imgUrl: Spearmen
     },
     [UnitType.Cavalry]: {
-      name: 'Wolf Riders'
+      name: 'Wolf Riders',
+      imgUrl: Wolf_Riders
     },
     [UnitType.Flying]: {
-      name: 'Wyvern Riders'
+      name: 'Wyvern Riders',
+      imgUrl: Wyvern_Riders
     }
   },
 });

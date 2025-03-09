@@ -29,7 +29,7 @@ const TierFields: FC<TierFieldsProps> = ({
     <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
       <Box
         component="img"
-        src={`src/assets/units/${factionData[selectedFaction][unitType].name}.png`}
+        src={factionData[selectedFaction][unitType].imgUrl}
         alt={unitType}
         sx={{
           width: 96,
