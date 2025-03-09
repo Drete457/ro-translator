@@ -1,0 +1,1 @@
+export { default as SelectedFaction } from './selected-faction';

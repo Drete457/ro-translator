@@ -1,22 +1,12 @@
 {
-  "name": "ro-translator",
+  "name": "ice_alliance_project",
   "version": "0.0.1",
   "main": "src/bot.js",
   "repository": "https://github.com/Drete457/ro-translator.git",
   "author": "Filipe Mota <nada.geral@gmail.com>",
   "license": "MIT",
-  "scripts": {
-    "start": "node src/bot.js"
-  },
-  "dependencies": {
-    "discord.js": "^14.13.0",
-    "dotenv": "^16.3.1",
-    "form-data": "^4.0.0",
-    "google-auth-library": "^8.8.0",
-    "google-spreadsheet": "^4.1.0",
-    "google-translate-api-x": "^10.6.7",
-    "node-fetch": "2",
-    "node_characterai": "^1.2.0",
-    "sharp": "^0.32.6"
-  }
+  "workspaces": [
+    "src/*"
+  ],
+  "packageManager": "yarn@3.4.1+sha512.a333bf9c2557d71f5ba87dd1446cde24bb9c35301ec29dd2baba577b3f9d1ab61348b66a1324de9088c40a996c5b9203794da8bf14cab9fae6a6eccc00cb8078"
 }
