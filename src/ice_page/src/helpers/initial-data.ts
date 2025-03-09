@@ -1,9 +1,9 @@
 import { PlayerFormData } from "../types";
 
 const FormInitialData: PlayerFormData = Object.freeze({
-  userId: 0,
+  userId: null,
   userName: '',
-  power: 0,
+  power: null,
   faction: '',
   timeZone: '',
   t1InfantryCount: 0,
@@ -21,16 +21,16 @@ const FormInitialData: PlayerFormData = Object.freeze({
   t3ArchersCount: 0,
   t4ArchersCount: 0,
   t5ArchersCount: 0,
-  t1CavalryUnitsCount: 0,
-  t2CavalryUnitsCount: 0,
-  t3CavalryUnitsCount: 0,
-  t4CavalryUnitsCount: 0,
-  t5CavalryUnitsCount: 0,
-  t1FlyingUnitsCount: 0,
-  t2FlyingUnitsCount: 0,
-  t3FlyingUnitsCount: 0,
-  t4FlyingUnitsCount: 0,
-  t5FlyingUnitsCount: 0,
+  t1CavalryCount: 0,
+  t2CavalryCount: 0,
+  t3CavalryCount: 0,
+  t4CavalryCount: 0,
+  t5CavalryCount: 0,
+  t1FlyingCount: 0,
+  t2FlyingCount: 0,
+  t3FlyingCount: 0,
+  t4FlyingCount: 0,
+  t5FlyingCount: 0,
 });
 
 export default FormInitialData;

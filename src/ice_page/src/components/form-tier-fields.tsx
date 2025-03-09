@@ -7,13 +7,12 @@ import {
   Stack,
   Paper
 } from '@mui/material';
-import { Faction, FactionData, PlayerFormData } from "../types";
+import { Faction, PlayerFormData, UnitType } from "../types";
 import { factionData } from "../helpers";
 
 interface TierFieldsProps {
   selectedFaction: Faction;
-  unitType: string;
-  imageUrl: string;
+  unitType: UnitType;
   fieldPrefix: string;
   formData: PlayerFormData;
   handleChange: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -22,7 +21,6 @@ interface TierFieldsProps {
 const TierFields: FC<TierFieldsProps> = ({
   selectedFaction,
   unitType,
-  imageUrl,
   fieldPrefix,
   formData,
   handleChange
@@ -31,7 +29,7 @@ const TierFields: FC<TierFieldsProps> = ({
     <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
       <Box
         component="img"
-        src={imageUrl}
+        src={`src/assets/units/${factionData[selectedFaction][unitType].name}.png`}
         alt={unitType}
         sx={{
           width: 96,

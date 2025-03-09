@@ -11,9 +11,9 @@ import Form from './components/form';
 import { logo } from './assets';
 
 const App = () => {
-  const [selectedFaction, setSelectedFaction] = useState<Faction>(null);
+  const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null);
  
-  const handleFactionSelect = (faction: Faction) => {
+  const handleFactionSelect = (faction: Faction | null) => {
     setSelectedFaction(faction);
   };
 

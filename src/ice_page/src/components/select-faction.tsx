@@ -35,7 +35,7 @@ const SelectedFaction: FC<SelectedFactionProps> = ({
             }
           }}
         >
-          <CardActionArea onClick={() => handleFactionSelect('Springwardens')}>
+          <CardActionArea onClick={() => handleFactionSelect(Faction.Springwardens)}>
             <CardMedia
               component="img"
               height="220"
@@ -65,7 +65,7 @@ const SelectedFaction: FC<SelectedFactionProps> = ({
             }
           }}
         >
-          <CardActionArea onClick={() => handleFactionSelect('League of Order')}>
+          <CardActionArea onClick={() => handleFactionSelect(Faction.LeagueOfOrder)}>
             <CardMedia
               component="img"
               height="220"
@@ -95,7 +95,7 @@ const SelectedFaction: FC<SelectedFactionProps> = ({
             }
           }}
         >
-          <CardActionArea onClick={() => handleFactionSelect('Wilderburg')}>
+          <CardActionArea onClick={() => handleFactionSelect(Faction.Wilderburg)}>
             <CardMedia
               component="img"
               height="220"

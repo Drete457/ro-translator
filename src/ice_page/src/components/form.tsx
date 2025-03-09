@@ -8,13 +8,13 @@ import {
   Stack,
   Paper
 } from '@mui/material';
-import { Faction, PlayerFormData } from '../types';
-import { factionData, FormInitialData } from '../helpers';
+import { Faction, PlayerFormData, UnitType } from '../types';
+import { FormInitialData } from '../helpers';
 import TierFields from './form-tier-fields';
 
 interface FormProps {
   selectedFaction: Faction;
-  setSelectedFaction: (faction: Faction) => void;
+  setSelectedFaction: (faction: Faction | null) => void;
 }
 
 const Form: FC<FormProps> = ({
@@ -190,15 +190,15 @@ const Form: FC<FormProps> = ({
           Army Units
         </Typography>
 
-        <TierFields selectedFaction={selectedFaction} unitType='infantry' imageUrl={`src/assets/units/${factionData[selectedFaction]['infantry'].name}.png`} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Infantry} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} />
 
-        <TierFields selectedFaction={selectedFaction} unitType='mages' imageUrl={`src/assets/units/${factionData[selectedFaction]['mages'].name}.png`} fieldPrefix="MagesCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Mages}  fieldPrefix="MagesCount" formData={formData} handleChange={handleChange} />
 
-        <TierFields selectedFaction={selectedFaction} unitType='archers' imageUrl={`src/assets/units/${factionData[selectedFaction]['archers'].name}.png`} fieldPrefix="ArchersCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Archers}  fieldPrefix="ArchersCount" formData={formData} handleChange={handleChange} />
 
-        <TierFields selectedFaction={selectedFaction} unitType='cavalry' imageUrl={`src/assets/units/${factionData[selectedFaction]['cavalry'].name}.png`} fieldPrefix="CavalryCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Cavalry} fieldPrefix="CavalryCount" formData={formData} handleChange={handleChange} />
 
-        <TierFields selectedFaction={selectedFaction} unitType='flying' imageUrl={`src/assets/units/${factionData[selectedFaction]['flying'].name}.png`} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Flying} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} />
 
         <Grid item xs={12}>
           <Button

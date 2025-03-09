@@ -1,7 +1,7 @@
 interface PlayerFormData {
-  userId: number;
+  userId: number | null;
   userName: string;
-  power: number;
+  power: number | null;
   faction: string;
   timeZone: string;
   t1InfantryCount: number;
@@ -19,16 +19,16 @@ interface PlayerFormData {
   t3ArchersCount: number;
   t4ArchersCount: number;
   t5ArchersCount: number;
-  t1CavalryUnitsCount: number;
-  t2CavalryUnitsCount: number;
-  t3CavalryUnitsCount: number;
-  t4CavalryUnitsCount: number;
-  t5CavalryUnitsCount: number;
-  t1FlyingUnitsCount: number;
-  t2FlyingUnitsCount: number;
-  t3FlyingUnitsCount: number;
-  t4FlyingUnitsCount: number;
-  t5FlyingUnitsCount: number;
+  t1CavalryCount: number;
+  t2CavalryCount: number;
+  t3CavalryCount: number;
+  t4CavalryCount: number;
+  t5CavalryCount: number;
+  t1FlyingCount: number;
+  t2FlyingCount: number;
+  t3FlyingCount: number;
+  t4FlyingCount: number;
+  t5FlyingCount: number;
 }
 
 export type { PlayerFormData };

@@ -1,54 +1,54 @@
-import { FactionData } from "../types";
+import { Faction, FactionData, UnitType } from "../types";
 
 const factionData: FactionData = Object.freeze({
-  "Springwardens": {
-    infantry: {
+  [Faction.Springwardens]: {
+    [UnitType.Infantry]: {
       name: 'Ironbark Treants'
     },
-    mages: {
+    [UnitType.Mages]: {
       name: 'Longleaf Treants'
     },
-    archers: {
+    [UnitType.Archers]: {
       name: 'Archers'
     },
-    cavalry: {
+    [UnitType.Cavalry]: {
       name: 'Elk Riders'
     },
-    flying: {
+    [UnitType.Flying]: {
       name: 'Forest Eagles'
     }
   },
-  "League of Order": {
-    infantry: {
+  [Faction.LeagueOfOrder]: {
+    [UnitType.Infantry]: {
       name: 'Swordsmen'
     },
-    mages: {
+    [UnitType.Mages]: {
       name: 'Vestals'
     },
-    archers: {
+    [UnitType.Archers]: {
       name: 'Ballistas'
     },
-    cavalry: {
+    [UnitType.Cavalry]: {
       name: 'Knights'
     },
-    flying: {
+    [UnitType.Flying]: {
       name: 'Celestials'
     }
   },
-  "Wilderburg": {
-    infantry: {
+  [Faction.Wilderburg]: {
+    [UnitType.Infantry]: {
       name: 'Axemen'
     },
-    mages: {
+    [UnitType.Mages]: {
       name: 'Satyr Witches'
     },
-    archers: {
+    [UnitType.Archers]: {
       name: 'Spearmen'
     },
-    cavalry: {
+    [UnitType.Cavalry]: {
       name: 'Wolf Riders'
     },
-    flying: {
+    [UnitType.Flying]: {
       name: 'Wyvern Riders'
     }
   },

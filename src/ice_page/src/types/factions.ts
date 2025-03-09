@@ -1,57 +1,70 @@
-type Faction = 'Springwardens' | 'League of Order' | 'Wilderburg' | null;
+enum Faction {
+  Springwardens = 'Springwardens',
+  LeagueOfOrder = 'League of Order',
+  Wilderburg = 'Wilderburg'
+}
+
+enum UnitType {
+  Infantry = 'infantry',
+  Mages = 'mages',
+  Archers = 'archers',
+  Cavalry = 'cavalry',
+  Flying = 'flying'
+}
 
 interface FactionData {
-  "Springwardens": {
-    infantry: {
+  [Faction.Springwardens]: {
+    [UnitType.Infantry]: {
       name: string;
     },
-    mages: {
+    [UnitType.Mages]: {
       name: string;
     },
-    archers: {
+    [UnitType.Archers]: {
       name: string;
     },
-    cavalry: {
+    [UnitType.Cavalry]: {
       name: string;
     },
-    flying: {
+    [UnitType.Flying]: {
       name: string;
     }
   };
-  "League of Order": {
-    infantry: {
+  [Faction.LeagueOfOrder]: {
+    [UnitType.Infantry]: {
       name: string;
     },
-    mages: {
+    [UnitType.Mages]: {
       name: string;
     },
-    archers: {
+    [UnitType.Archers]: {
       name: string;
     },
-    cavalry: {
+    [UnitType.Cavalry]: {
       name: string;
     },
-    flying: {
+    [UnitType.Flying]: {
       name: string;
     }
   };
-  "Wilderburg": {
-    infantry: {
+  [Faction.Wilderburg]: {
+    [UnitType.Infantry]: {
       name: string;
     },
-    mages: {
+    [UnitType.Mages]: {
       name: string;
     },
-    archers: {
+    [UnitType.Archers]: {
       name: string;
     },
-    cavalry: {
+    [UnitType.Cavalry]: {
       name: string;
     },
-    flying: {
+    [UnitType.Flying]: {
       name: string;
     }
   };
 }
 
-export type { Faction, FactionData };
+export { Faction, UnitType};
+export type { FactionData };

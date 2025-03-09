@@ -1,1 +1,1 @@
-export { default as SelectedFaction } from './selected-faction';
+export { default as SelectedFaction } from './select-faction';
