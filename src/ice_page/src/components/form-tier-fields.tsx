@@ -16,6 +16,8 @@ interface TierFieldsProps {
   fieldPrefix: string;
   formData: PlayerFormData;
   handleChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  submitted: boolean; 
+  errors: Record<string, string>;
 }
 
 const TierFields: FC<TierFieldsProps> = ({
@@ -23,7 +25,9 @@ const TierFields: FC<TierFieldsProps> = ({
   unitType,
   fieldPrefix,
   formData,
-  handleChange
+  handleChange,
+  submitted,
+  errors
 }) => (
   <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
     <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
@@ -43,6 +47,11 @@ const TierFields: FC<TierFieldsProps> = ({
       </Typography>
     </Stack>
 
+    {submitted && !!errors[`${unitType}Troops`] && (
+      <Typography color="#ff6b6b" sx={{ mb: 1 }}>
+        {errors[`${unitType}Troops`]}
+      </Typography>
+    )}
     <Grid container spacing={2}>
       {[1, 2, 3, 4, 5].map(tier => {
         const fieldName = `t${tier}${fieldPrefix}`;

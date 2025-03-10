@@ -9,8 +9,9 @@ import {
   Paper
 } from '@mui/material';
 import { Faction, PlayerFormData, UnitType } from '../types';
-import { FormInitialData } from '../helpers';
+import { cFL, FormInitialData } from '../helpers';
 import TierFields from './form-tier-fields';
+import { addDoc, collection } from "firebase/firestore";
 
 interface FormProps {
   selectedFaction: Faction;
@@ -22,24 +23,98 @@ const Form: FC<FormProps> = ({
   setSelectedFaction
 }) => {
   const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+
+    setErrors({});
     setFormData(prev => ({
       ...prev,
       [name]: name === 'userName' ? value : Number(value)
     }));
   };
 
-  const saveToDatabase = async (data: PlayerFormData) => {
-    console.log('Selected faction:', selectedFaction);
-    console.log('Data ready to be sent to database:', data);
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    let isValid = true;
+
+    if (!formData.userId) {
+      newErrors.userId = "User ID is required";
+      isValid = false;
+    }
+
+    if (!formData.userName) {
+      newErrors.userName = "User Name is required";
+      isValid = false;
+    }
+
+    if (!formData.power) {
+      newErrors.power = "Power is required";
+      isValid = false;
+    }
+
+    const troopTypes = [cFL(UnitType.Infantry), cFL(UnitType.Mages), cFL(UnitType.Archers), cFL(UnitType.Cavalry), cFL(UnitType.Flying)];
+    troopTypes.forEach(type => {
+      const hasTroops = [1, 2, 3, 4, 5].some(tier => {
+        const fieldName = `t${tier}${type}Count` as keyof PlayerFormData;
+
+        if (formData[fieldName] !== undefined && Number(formData[fieldName]) > 0)
+          return true;
+
+        return false;
+      });
+
+      if (!hasTroops) {
+        newErrors[`${type.toLowerCase()}Troops`] = `At least one ${type} troop count is required`;
+        isValid = false;
+      }
+    });
+
+    setErrors(newErrors);
+    return isValid;
   };
 
-  const handleSubmit = (e: FormEvent) => {
+
+  const saveToDatabase = async (data: PlayerFormData) => {
+    const db = await import('../api').then(m => m.getFirebase());
+
+    const newData = Object.entries(data).reduce((acc: Record<string, string | number>, [key, value]) => {
+      acc[key] = value === undefined ? 0 : value;
+      return acc;
+    }, {} as Record<string, string | number>);
+
+    const docRef = await addDoc(collection(db, "playersInfo"), {
+      ...newData,
+      timestamp: new Date().toISOString()
+    });
+
+    if (docRef.id)
+      return true;
+
+    return false;
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    saveToDatabase(formData);
-    alert('Army data submitted successfully!');
+    setSubmitted(true);
+
+    if (validateForm()) {
+      const success = await saveToDatabase(formData);
+
+      if (success) {
+        alert('Army data submitted successfully!');
+        setSelectedFaction(null);
+        return;
+      }
+
+      alert('An unexpected error occurred. Please try again.');
+      return
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    alert('Please fill all required fields');
   };
 
   useEffect(() => {
@@ -107,6 +182,8 @@ const Form: FC<FormProps> = ({
                       '&:hover fieldset': { borderColor: 'lightblue' },
                     }
                   }}
+                  error={submitted && !!errors.userName}
+                  helperText={submitted && errors.userName}
                 />
               </Stack>
             </Grid>
@@ -121,11 +198,14 @@ const Form: FC<FormProps> = ({
                   type="number"
                   value={formData.userId}
                   onChange={handleChange}
+                  error={submitted && Boolean(errors.userId)}
+                  helperText={submitted && errors.userId}
                   sx={{
                     '& .MuiInputBase-input': { color: 'white' },
                     '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
                     '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
+                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
                       '&:hover fieldset': { borderColor: 'lightblue' },
                     }
                   }}
@@ -151,6 +231,8 @@ const Form: FC<FormProps> = ({
                       '&:hover fieldset': { borderColor: 'lightblue' },
                     }
                   }}
+                  error={submitted && !!errors.power}
+                  helperText={submitted && errors.power}
                 />
               </Stack>
             </Grid>
@@ -190,15 +272,15 @@ const Form: FC<FormProps> = ({
           Army Units
         </Typography>
 
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Infantry} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Infantry} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
 
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Mages}  fieldPrefix="MagesCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Mages} fieldPrefix="MagesCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
 
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Archers}  fieldPrefix="ArchersCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Archers} fieldPrefix="ArchersCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
 
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Cavalry} fieldPrefix="CavalryCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Cavalry} fieldPrefix="CavalryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
 
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Flying} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} />
+        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Flying} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
 
         <Grid item xs={12}>
           <Button
@@ -214,6 +296,7 @@ const Form: FC<FormProps> = ({
                 backgroundColor: '#115293'
               }
             }}
+            disabled={submitted}
           >
             Submit Army Data
           </Button>
