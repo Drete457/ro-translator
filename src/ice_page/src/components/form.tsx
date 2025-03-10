@@ -25,14 +25,14 @@ const Form: FC<FormProps> = ({
   const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
-
+  
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
     setErrors({});
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'userName' ? value : Number(value)
+      [name]: name === 'userName' ? value : Math.abs(Number(value))
     }));
   };
 
@@ -110,7 +110,8 @@ const Form: FC<FormProps> = ({
       }
 
       alert('An unexpected error occurred. Please try again.');
-      return
+      setSubmitted(false);
+      return;
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
