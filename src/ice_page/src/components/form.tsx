@@ -11,7 +11,7 @@ import {
 import { Faction, PlayerFormData, UnitType } from '../types';
 import { cFL, FormInitialData } from '../helpers';
 import TierFields from './form-tier-fields';
-import { addDoc, collection, getDoc } from "firebase/firestore";
+import { addDoc, collection } from "firebase/firestore";
 
 interface FormProps {
   selectedFaction: Faction;
