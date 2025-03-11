@@ -11,7 +11,7 @@ import {
 import { Faction, PlayerFormData, UnitType } from '../types';
 import { cFL, FormInitialData } from '../helpers';
 import TierFields from './form-tier-fields';
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, getDoc } from "firebase/firestore";
 
 interface FormProps {
   selectedFaction: Faction;
@@ -28,12 +28,27 @@ const Form: FC<FormProps> = ({
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    value.replace(".", "");
 
     setErrors({});
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'userName' ? value : Math.abs(Number(value))
-    }));
+    if (name !== 'userName') {
+      if (/^[^\d-]$/.test(value))
+        return;
+
+      const cleanedValue = value.replace(/[^\d-]/g, '');
+      if (cleanedValue === '')
+        return;
+
+      setFormData(prev => ({
+        ...prev,
+        [name]: Math.abs(Number(cleanedValue))
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const validateForm = () => {

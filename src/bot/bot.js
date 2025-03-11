@@ -6,13 +6,18 @@ const {
     Partials,
     ChannelType,
     quote,
+    AttachmentBuilder
 } = require("discord.js");
+const { getFirebase, collection, getDocs } = require('./firebase');
+const { createExcelFile } = require('./create-excel-file');
+const { playerInfo } = require('./helpers/excel-header');
+const fs = require('fs');
 
 try {
     const { init, chat } = require("./characterai");
     const translate = require("google-translate-api-x");
     const fetch = require("node-fetch");
-    const { discordToken, channelWithImage } = require("./env-variables");
+    const { discordToken, channelWithImage, channelData, channelDataTest } = require("./env-variables");
     const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
     const { richMessage } = require('./discord-custom-messages');
     const countries = require("./countries");
@@ -59,6 +64,30 @@ try {
                         originalChannel.send(richMessage(userName, e.message)).catch(() => console.log("Error sending message to channel: ", canal + " \n\n"))
                     });
                 });
+            }
+        }
+
+        if (message.channel.id === channelDataTest || message.channel.id === channelData) {
+            if (message.content === "!players-info") {
+                const db = await getFirebase();
+                const playersCollectionRef = collection(db, "playersInfo");
+                const querySnapshot = await getDocs(playersCollectionRef);
+                const data = querySnapshot.docs.map(doc => doc.data());
+
+                const fileName = `players_info_${Date.now()}.xlsx`;
+                const path = await createExcelFile(playerInfo, data, fileName, "Players Info");
+
+                const attachment = new AttachmentBuilder(path, { name: fileName });
+                if (attachment !== null || attachment !== undefined) {
+                    await message.channel.send({
+                        content: 'Here is the players information as Excel file:',
+                        files: [attachment]
+                    });
+                    fs.unlinkSync(path);
+                } else {
+                    await message.channel.send('Error generating Excel file. Please try again later.');
+                }
+
             }
         }
 
@@ -118,7 +147,7 @@ try {
     client.login(discordToken);
     if (!isInDevelopment)
         init();
-    
+
 } catch (e) {
     console.log("The bot crashed: ", e);
 }

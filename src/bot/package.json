@@ -3,12 +3,12 @@
   "version": "0.0.1",
   "main": "src/bot.js",
   "scripts": {
-    "start": "node src/bot.js"
+    "start": "node bot.js"
   },
   "dependencies": {
-    "@firebase/firestore": "^4.7.9",
     "discord.js": "^14.13.0",
     "dotenv": "^16.3.1",
+    "exceljs": "^4.4.0",
     "firebase": "^11.4.0",
     "form-data": "^4.0.0",
     "google-auth-library": "^8.8.0",
