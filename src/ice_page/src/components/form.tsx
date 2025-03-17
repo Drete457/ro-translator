@@ -24,7 +24,7 @@ const Form: FC<FormProps> = ({
 }) => {
   const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<boolean>(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -257,6 +257,112 @@ const Form: FC<FormProps> = ({
 
         <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
           <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+            Player Activity
+          </Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={4}>
+              <Stack spacing={1} alignItems="center">
+                <TextField
+                  required
+                  fullWidth
+                  id="unitsKilled"
+                  label="Units Killed"
+                  name="unitsKilled"
+                  type="number"
+                  value={formData.unitsKilled}
+                  onChange={handleChange}
+                  error={submitted && !!errors.unitsKilled}
+                  helperText={submitted && errors.unitsKilled}
+                  sx={{
+                    '& .MuiInputBase-input': { color: 'white' },
+                    '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
+                      '&:hover fieldset': { borderColor: 'lightblue' },
+                    }
+                  }}
+                />
+              </Stack>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Stack spacing={1} alignItems="center">
+                <TextField
+                  required
+                  fullWidth
+                  id="unitsLost"
+                  label="Units Lost"
+                  name="unitsLost"
+                  type="number"
+                  value={formData.unitsLost}
+                  onChange={handleChange}
+                  error={submitted && !!errors.unitsLost}
+                  helperText={submitted && errors.unitsLost}
+                  sx={{
+                    '& .MuiInputBase-input': { color: 'white' },
+                    '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
+                      '&:hover fieldset': { borderColor: 'lightblue' },
+                    }
+                  }}
+                />
+              </Stack>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Stack spacing={1} alignItems="center">
+                <TextField
+                  required
+                  fullWidth
+                  id="unitsHealed"
+                  label="Units Healed"
+                  name="unitsHealed"
+                  type="number"
+                  value={formData.unitsHealed}
+                  onChange={handleChange}
+                  sx={{
+                    '& .MuiInputBase-input': { color: 'white' },
+                    '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
+                      '&:hover fieldset': { borderColor: 'lightblue' },
+                    }
+                  }}
+                  error={submitted && !!errors.unitsHealed}
+                  helperText={submitted && errors.unitsHealed}
+                />
+              </Stack>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Stack spacing={1} alignItems="center">
+                <TextField
+                  required
+                  fullWidth
+                  id="timesAllianceHelped"
+                  label="Times Alliance Helped"
+                  name="timesAllianceHelped"
+                  type="number"
+                  value={formData.TimesAllianceHelped}
+                  onChange={handleChange}
+                  sx={{
+                    '& .MuiInputBase-input': { color: 'white' },
+                    '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
+                      '&:hover fieldset': { borderColor: 'lightblue' },
+                    }
+                  }}
+                  error={submitted && !!errors.timesAllianceHelped}
+                  helperText={submitted && errors.timesAllianceHelped}
+                />
+              </Stack>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
+          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
             Time Zone
           </Typography>
           <Grid container spacing={3}>
@@ -284,19 +390,16 @@ const Form: FC<FormProps> = ({
           </Grid>
         </Paper>
 
-        <Typography variant="h6" sx={{ color: 'white', mb: 2, mt: 4 }}>
-          Army Units
-        </Typography>
-
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Infantry} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
-
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Mages} fieldPrefix="MagesCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
-
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Archers} fieldPrefix="ArchersCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
-
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Cavalry} fieldPrefix="CavalryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
-
-        <TierFields selectedFaction={selectedFaction} unitType={UnitType.Flying} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
+        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
+          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+            Army Units
+          </Typography>
+          <TierFields selectedFaction={selectedFaction} unitType={UnitType.Infantry} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
+          <TierFields selectedFaction={selectedFaction} unitType={UnitType.Mages} fieldPrefix="MagesCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
+          <TierFields selectedFaction={selectedFaction} unitType={UnitType.Archers} fieldPrefix="ArchersCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
+          <TierFields selectedFaction={selectedFaction} unitType={UnitType.Cavalry} fieldPrefix="CavalryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
+          <TierFields selectedFaction={selectedFaction} unitType={UnitType.Flying} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
+        </Paper>
 
         <Grid item xs={12}>
           <Button

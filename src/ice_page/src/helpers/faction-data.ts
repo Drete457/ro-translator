@@ -9,7 +9,7 @@ const factionData: FactionData = Object.freeze({
     },
     [UnitType.Mages]: {
       name: 'Longleaf Treants',
-imgUrl: Longleaf_Treants
+      imgUrl: Longleaf_Treants
     },
     [UnitType.Archers]: {
       name: 'Archers',

@@ -3,6 +3,10 @@ interface PlayerFormData {
   userName: string;
   power: number | undefined;
   faction: string;
+  unitsKilled: number | undefined;
+  unitsLost: number | undefined;
+  unitsHealed: number | undefined;
+  TimesAllianceHelped: number | undefined;
   timeZone: string;
   t1InfantryCount: number | undefined;
   t2InfantryCount: number | undefined;
