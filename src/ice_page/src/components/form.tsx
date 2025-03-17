@@ -257,7 +257,7 @@ const Form: FC<FormProps> = ({
 
         <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
           <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
-            Player Activity (can see this information on "More Info" you your profile page)
+            Player Activity (can see this information on "More Info" on your profile page)
           </Typography>
           <Grid container spacing={3}>
             <Grid item xs={12} sm={4}>
@@ -343,7 +343,7 @@ const Form: FC<FormProps> = ({
                   label="Times Alliance Helped"
                   name="timesAllianceHelped"
                   type="number"
-                  value={formData.TimesAllianceHelped}
+                  value={formData.timesAllianceHelped}
                   onChange={handleChange}
                   sx={{
                     '& .MuiInputBase-input': { color: 'white' },

@@ -6,7 +6,7 @@ interface PlayerFormData {
   unitsKilled: number | undefined;
   unitsLost: number | undefined;
   unitsHealed: number | undefined;
-  TimesAllianceHelped: number | undefined;
+  timesAllianceHelped: number | undefined;
   timeZone: string;
   t1InfantryCount: number | undefined;
   t2InfantryCount: number | undefined;
