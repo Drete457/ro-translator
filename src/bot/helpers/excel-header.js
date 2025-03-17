@@ -6,7 +6,7 @@ const playerInfo = Object.freeze({
   unitsKilled: undefined,
   unitsLost: undefined,
   unitsHealed: undefined,
-  TimesAllianceHelped: undefined,
+  timesAllianceHelped: undefined,
   timeZone: '',
   t1InfantryCount: undefined,
   t2InfantryCount: undefined,
