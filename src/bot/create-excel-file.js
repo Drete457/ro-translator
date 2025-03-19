@@ -1,5 +1,6 @@
 const ExcelJS = require('exceljs');
 const path = require('path');
+const { isValidISODateString } = require('./helpers/valid-iso-date-string');
 
 const createExcelFile = async (header, data, fileName, title) => {
   const workbook = new ExcelJS.Workbook();
@@ -12,25 +13,41 @@ const createExcelFile = async (header, data, fileName, title) => {
     return filePath;
   }
 
-  /* const formattedHeader = {};
-  for (const key in header) {
-    const formattedKey = key
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
+  const formattedHeaders = Object.keys({ ...header, timestamp: 0 }).map(key =>
+    key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim()
+  );
 
-    formattedHeader[formattedKey] = header[key];
-  }
+  const headerMapping = {};
+  Object.keys({ ...header, timestamp: 0 }).forEach((key, index) => {
+    headerMapping[key] = formattedHeaders[index];
+  });
 
-  const headers = Object.keys(formattedHeader); */
-  const headers = Object.keys(header);
-  worksheet.addRow(headers);
+  worksheet.addRow(formattedHeaders);
 
   data.forEach(item => {
     const row = [];
-    headers.forEach(header => {
-      row.push(item[header] || '');
+    Object.keys(headerMapping).forEach(originalKey => {
+      const value = item[originalKey] ?? "";
+
+      if (typeof value === 'string' && isValidISODateString(value)) {
+        const date = new Date(value);
+        const formattedDate = date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        }) + ' ' +
+          date.toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          });
+        row.push(formattedDate);
+      } else {
+        row.push(value);
+      }
+
     });
+
     worksheet.addRow(row);
   });
 

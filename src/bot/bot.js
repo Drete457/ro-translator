@@ -87,7 +87,6 @@ try {
                 } else {
                     await message.channel.send('Error generating Excel file. Please try again later.');
                 }
-
             }
         }
 
