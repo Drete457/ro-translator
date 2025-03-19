@@ -369,13 +369,11 @@ const Form: FC<FormProps> = ({
             <Grid item xs={12} sm={6}>
               <Stack spacing={1} alignItems="center">
                 <TextField
-                  required
                   fullWidth
                   id="timeZone"
                   label="Time Zone"
                   name="timeZone"
                   value={formData.timeZone}
-                  onChange={handleChange}
                   sx={{
                     '& .MuiInputBase-input': { color: 'white' },
                     '& .MuiInputLabel-root': { color: 'lightblue' },
@@ -384,6 +382,8 @@ const Form: FC<FormProps> = ({
                       '&:hover fieldset': { borderColor: 'lightblue' },
                     }
                   }}
+                  aria-readonly
+                  
                 />
               </Stack>
             </Grid>
