@@ -12,6 +12,7 @@ const { getFirebase, collection, getDocs } = require('./firebase');
 const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
 const fs = require('fs');
+const { birthdayMemes, generateBirthdayMessage } = require('./birthday');
 
 try {
     const { init, chat } = require("./characterai");
@@ -87,6 +88,44 @@ try {
                 } else {
                     await message.channel.send('Error generating Excel file. Please try again later.');
                 }
+            }
+        }
+        if (message.content.startsWith("!happy_birthday")) {
+            const args = message.content.split(" ");
+            args.shift();
+
+            if (args.length === 0) {
+                await message.channel.send("Please specify a player name! Usage: !happy_birthday [player name]");
+                return;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            let playerName;
+            let playerMention;
+
+            if (mentionedUser) {
+                playerName = mentionedUser.username;
+                playerMention = `<@${mentionedUser.id}>`;
+            } else {
+                playerName = args.join(" ");
+                playerMention = playerName;
+            }
+
+
+            const randomMeme = birthdayMemes[Math.floor(Math.random() * birthdayMemes.length)];
+            const birthdayMessage = generateBirthdayMessage(playerName);
+
+            try {
+                await message.channel.send({
+                    content: birthdayMessage.replace(playerName, playerMention), 
+                    files: [randomMeme]
+                });
+
+                await message.react('🎂');
+                await message.react('🎉');
+            } catch (error) {
+                console.error("Error sending birthday message:", error);
+                await message.channel.send("Sorry, I couldn't send the birthday message. Please try again later.");
             }
         }
 
