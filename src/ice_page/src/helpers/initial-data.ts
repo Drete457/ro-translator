@@ -1,4 +1,4 @@
-import { PlayerFormData } from "../types";
+import { MeritFormData, PlayerFormData } from "../types";
 
 const FormInitialData: PlayerFormData = Object.freeze({
   userId: undefined,
@@ -37,4 +37,10 @@ const FormInitialData: PlayerFormData = Object.freeze({
   t5FlyingCount: undefined,
 });
 
+const MeritsInitialData: MeritFormData = Object.freeze({
+  userId: undefined,
+  merits: undefined,
+});
+
 export default FormInitialData;
+export { MeritsInitialData };

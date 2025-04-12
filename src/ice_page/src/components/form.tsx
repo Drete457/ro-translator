@@ -25,11 +25,12 @@ const Form: FC<FormProps> = ({
   const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
-
+console.log(submitted)
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     value.replace(".", "");
 
+    if(submitted) setSubmitted(false);
     setErrors({});
     if (name !== 'userName') {
       if (/^[^\d-]$/.test(value))
@@ -90,7 +91,6 @@ const Form: FC<FormProps> = ({
     setErrors(newErrors);
     return isValid;
   };
-
 
   const saveToDatabase = async (data: PlayerFormData) => {
     const db = await import('../api').then(m => m.getFirebase());
