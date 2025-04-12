@@ -69,6 +69,11 @@ try {
         }
 
         if (message.channel.id === channelDataTest || message.channel.id === channelData) {
+            if(message.content === "!commands") {
+                await message.channel.send("Commands available: !players-info, !players-info-merits");
+                return;
+            }
+
             if (message.content === "!players-info") {
                 const db = await getFirebase();
                 const playersCollectionRef = collection(db, "playersInfo");
@@ -89,7 +94,52 @@ try {
                     await message.channel.send('Error generating Excel file. Please try again later.');
                 }
             }
+
+            if(message.content === "!players-info-merits") {
+                const db = await getFirebase();
+                const playersCollectionRef = collection(db, "playersInfo");
+                const playersCollectionMeritsRef = collection(db, "playersMerits");
+                const querySnapshot = await getDocs(playersCollectionRef);
+                const querySnapshotMerits = await getDocs(playersCollectionMeritsRef);
+                const data = querySnapshot.docs.map(doc => doc.data());
+                const dataMerits = querySnapshotMerits.docs.map(doc => doc.data());
+                const dataMeritsFiltered = dataMerits.map((item) => {
+                    const player = data.find((player) => player.userId === item.userId);
+                    
+                    return ({
+                        userId: item.userId,
+                        userName: player ? player.userName : "Unknown",
+                        power: player ? player.power : "Unknown",
+                        merits: item.merits,
+                        percentageMeritsDividePower: `${Math.round((item.merits / player.power) * 10000) / 100}%`,
+                        timestamp: item.timestamp,                       
+                    })
+                });
+
+                const headerFormatted = Object.freeze({
+                    userId: undefined,
+                    userName: '',
+                    power: undefined,
+                    merits: undefined,
+                    percentageMeritsDividePower: undefined,
+                });
+
+                const fileName = `players_merits_${Date.now()}.xlsx`;
+                const path = await createExcelFile(headerFormatted, dataMeritsFiltered, fileName, "Players Merits Info");
+
+                const attachment = new AttachmentBuilder(path, { name: fileName });
+                if (attachment !== null || attachment !== undefined) {
+                    await message.channel.send({
+                        content: 'Here is the players Merits as Excel file:',
+                        files: [attachment]
+                    });
+                    fs.unlinkSync(path);
+                } else {
+                    await message.channel.send('Error generating Excel file. Please try again later.');
+                }
+            }
         }
+
         if (message.content.startsWith("!happy_birthday")) {
             const args = message.content.split(" ");
             args.shift();
