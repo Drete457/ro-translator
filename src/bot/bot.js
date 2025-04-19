@@ -13,6 +13,7 @@ const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
 const fs = require('fs');
 const { birthdayMemes, generateBirthdayMessage } = require('./birthday');
+const activeCountdowns = new Map();
 
 try {
     const { init, chat } = require("./characterai");
@@ -140,6 +141,11 @@ try {
             }
         }
 
+        if (message.content === "!commands") {
+            await message.channel.send("Commands available: !happy_birthday, !bastions_countdown [number], !stop_countdown");
+            return;
+        }
+
         if (message.content.startsWith("!happy_birthday")) {
             const args = message.content.split(" ");
             args.shift();
@@ -176,6 +182,96 @@ try {
             } catch (error) {
                 console.error("Error sending birthday message:", error);
                 await message.channel.send("Sorry, I couldn't send the birthday message. Please try again later.");
+            }
+        }
+
+        if(message.content.startsWith("!bastions_countdown")) {
+            if (activeCountdowns.has(message.channel.id)) {
+                await message.channel.send("A countdown is already running in this channel. Use `!stop_countdown` to stop it first.");
+                return;
+            }
+
+            const args = message.content.split(" ");
+            const argumentWithNumber = args.find(arg => !isNaN(arg) && Number(arg) > 0);
+
+            let live = Number(argumentWithNumber);
+            if (isNaN(live) || live <= 1000) {
+                await message.channel.send("Please specify a valid positive number of live points! Usage: !bastions_countdown [number]");
+                return;
+            }
+
+            let countdownMessage = await message.channel.send(`Starting countdown from **${live}** live points...`);
+            activeCountdowns.set(message.channel.id, { message: countdownMessage, timerId: null });
+
+            const timer = () => {
+                const countdownData = activeCountdowns.get(message.channel.id);
+                if (!countdownData) return;
+
+                const timerId = setTimeout(async () => {
+                    const remainLive = Math.max(0, live - 100);
+                    const numberOfAttack = remainLive / 100;
+                    const timeToFinishAllAttacks = numberOfAttack * 4;
+                    const hours = Math.floor(timeToFinishAllAttacks / 3600);
+                    const minutes = Math.floor((timeToFinishAllAttacks % 3600) / 60);
+                    const seconds = Math.floor(timeToFinishAllAttacks % 60);
+                    const timeToFinishAllAttacksString = `${hours}h ${minutes}m ${seconds}s`;
+                    live = remainLive;
+
+                    let messageToSend;
+                    if (live > 0) {
+                        messageToSend = `**${live}** live points left. \n\n **Estimated time remaining:** ${timeToFinishAllAttacksString}`;
+                    } else {
+                        messageToSend = `**Bastion destroyed!** Countdown finished.`;
+                    }
+
+                    try {
+                        let currentMessage = countdownData.message;
+                        if (currentMessage && !currentMessage.deleted) {
+                            countdownData.message = await currentMessage.edit(messageToSend);
+                        } else {
+                            console.log("Countdown message was deleted.");
+                            activeCountdowns.delete(message.channel.id);
+                            return;
+                        }
+                    } catch (error) {
+                        console.error("Error editing countdown message:", error);
+                        activeCountdowns.delete(message.channel.id);
+                        return;
+                    }
+
+                    if (live > 0) {
+                        timer()
+                    } else {
+                        activeCountdowns.delete(message.channel.id); 
+                    }
+                }, 5000); 
+
+                if (countdownData) 
+                    countdownData.timerId = timerId;
+                
+            };
+
+            timer();
+        }
+
+        if (message.content === "!stop_countdown") {
+            const countdownData = activeCountdowns.get(message.channel.id);
+
+            if (countdownData && countdownData.timerId) {
+                clearTimeout(countdownData.timerId); 
+                activeCountdowns.delete(message.channel.id); 
+
+                try {
+                    if (countdownData.message && !countdownData.message.deleted) {
+                        await countdownData.message.edit("Countdown stopped manually.");
+                    }
+                } catch (editError) {
+                    console.error("Could not edit message after stopping countdown:", editError);
+                }
+
+                await message.channel.send("Bastion countdown stopped.");
+            } else {
+                await message.channel.send("No active bastion countdown found in this channel.");
             }
         }
 
