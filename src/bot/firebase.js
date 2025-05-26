@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { getFirestore, collection, getDocs, query, where, orderBy } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -18,4 +18,4 @@ const getFirebase = async () => {
   return db;
 };
 
-export { getFirebase, collection, getDocs };
+export { getFirebase, collection, getDocs, query, where, orderBy };
