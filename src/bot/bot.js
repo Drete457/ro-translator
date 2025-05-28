@@ -209,83 +209,12 @@ try {
                     await message.channel.send('Error generating Excel file for merits. Please try again later.');
                 }
             }
-
-            if (message.content.startsWith("!countdown")) {
-                if (activeCountdowns.has(message.channel.id)) {
-                    await message.channel.send("A countdown is already running in this channel. Use `!stop_countdown` to stop it first.");
-                    return;
-                }
-
-                const args = message.content.split(" ");
-                args.shift();
-
-                if (args.length < 2) {
-                    await message.channel.send("Usage: `!countdown time text` (e.g., `!countdown 10m Meeting reminder` or `!countdown 1h30s Event start`). Time units are h, m, s.");
-                    return;
-                }
-
-                const timeArg = args.shift();
-                const textArg = args.join(" ");
-                const durationMs = parseTime(timeArg);
-
-                if (!durationMs) {
-                    await message.channel.send("Invalid time format. Use h, m, s (e.g., `1h30m`, `10s`, `5m`). Example: `!countdown 10m My reminder`");
-                    return;
-                }
-
-                const endTime = Date.now() + durationMs;
-                const userTag = message.author.tag;
-
-                let countdownMsg = await message.channel.send(`⏳ Timer set for **${textArg}** by ${userTag}. Time remaining: ${formatDuration(durationMs)}`);
-
-                const intervalId = setInterval(async () => {
-                    const currentCountdownData = activeCountdowns.get(message.channel.id);
-                    if (!currentCountdownData || currentCountdownData.type !== 'generic') { 
-                        clearInterval(intervalId);
-                        if (currentCountdownData) activeCountdowns.delete(message.channel.id); 
-                        return;
-                    }
-
-                    const now = Date.now();
-                    const remainingMs = currentCountdownData.endTime - now;
-
-                    if (remainingMs <= 0) {
-                        clearInterval(intervalId);
-                        activeCountdowns.delete(message.channel.id);
-                        try {
-                            if (countdownMsg && !countdownMsg.deleted) {
-                                await countdownMsg.edit(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`);
-                            }
-                        } catch (editError) {
-                            console.error("Error editing final generic countdown message:", editError);
-                            message.channel.send(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`).catch(console.error);
-                        }
-                        return;
-                    }
-
-                    try {
-                        if (countdownMsg && !countdownMsg.deleted) {
-                           await countdownMsg.edit(`⏳ Timer for **${currentCountdownData.originalText}** by ${userTag}. Time remaining: ${formatDuration(remainingMs)}`);
-                        } else {
-                            clearInterval(intervalId);
-                            activeCountdowns.delete(message.channel.id);
-                            console.log("Generic countdown message was deleted.");
-                        }
-                    } catch (error) {
-                        console.error("Error editing generic countdown message:", error);
-                    }
-                }, 1000); 
-
-                activeCountdowns.set(message.channel.id, {
-                    type: 'generic', 
-                    message: countdownMsg,
-                    timerId: intervalId, 
-                    endTime,
-                    originalText: textArg,
-                    userTag
-                });
-            }
         } 
+
+        if (message.content === "!commands") {
+            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown number`, `!countdown time text`, `!stop_countdown`");
+            return;
+        }
 
         if (message.content.startsWith("!happy_birthday")) {
             const args = message.content.split(" ");
@@ -412,6 +341,82 @@ try {
                 }
             };
             timer();
+        }
+
+        if (message.content.startsWith("!countdown")) {
+            if (activeCountdowns.has(message.channel.id)) {
+                await message.channel.send("A countdown is already running in this channel. Use `!stop_countdown` to stop it first.");
+                return;
+            }
+
+            const args = message.content.split(" ");
+            args.shift();
+
+            if (args.length < 2) {
+                await message.channel.send("Usage: `!countdown time text` (e.g., `!countdown 10m Meeting reminder` or `!countdown 1h30s Event start`). Time units are h, m, s.");
+                return;
+            }
+
+            const timeArg = args.shift();
+            const textArg = args.join(" ");
+            const durationMs = parseTime(timeArg);
+
+            if (!durationMs) {
+                await message.channel.send("Invalid time format. Use h, m, s (e.g., `1h30m`, `10s`, `5m`). Example: `!countdown 10m My reminder`");
+                return;
+            }
+
+            const endTime = Date.now() + durationMs;
+            const userTag = message.author.tag;
+
+            let countdownMsg = await message.channel.send(`⏳ Timer set for **${textArg}** by ${userTag}. Time remaining: ${formatDuration(durationMs)}`);
+
+            const intervalId = setInterval(async () => {
+                const currentCountdownData = activeCountdowns.get(message.channel.id);
+                if (!currentCountdownData || currentCountdownData.type !== 'generic') {
+                    clearInterval(intervalId);
+                    if (currentCountdownData) activeCountdowns.delete(message.channel.id);
+                    return;
+                }
+
+                const now = Date.now();
+                const remainingMs = currentCountdownData.endTime - now;
+
+                if (remainingMs <= 0) {
+                    clearInterval(intervalId);
+                    activeCountdowns.delete(message.channel.id);
+                    try {
+                        if (countdownMsg && !countdownMsg.deleted) {
+                            await countdownMsg.edit(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`);
+                        }
+                    } catch (editError) {
+                        console.error("Error editing final generic countdown message:", editError);
+                        message.channel.send(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`).catch(console.error);
+                    }
+                    return;
+                }
+
+                try {
+                    if (countdownMsg && !countdownMsg.deleted) {
+                        await countdownMsg.edit(`⏳ Timer for **${currentCountdownData.originalText}** by ${userTag}. Time remaining: ${formatDuration(remainingMs)}`);
+                    } else {
+                        clearInterval(intervalId);
+                        activeCountdowns.delete(message.channel.id);
+                        console.log("Generic countdown message was deleted.");
+                    }
+                } catch (error) {
+                    console.error("Error editing generic countdown message:", error);
+                }
+            }, 1000);
+
+            activeCountdowns.set(message.channel.id, {
+                type: 'generic',
+                message: countdownMsg,
+                timerId: intervalId,
+                endTime,
+                originalText: textArg,
+                userTag
+            });
         }
 
         if (message.content === "!stop_countdown") {
