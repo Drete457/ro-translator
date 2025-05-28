@@ -8,12 +8,14 @@ const {
     quote,
     AttachmentBuilder
 } = require("discord.js");
-const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase'); 
+const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
 const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
 const fs = require('fs');
 const { birthdayMemes, generateBirthdayMessage } = require('./birthday');
-const activeCountdowns = new Map();
+const { formatDuration, parseTime } = require('./helpers/format-time');
+
+const activeCountdowns = new Map(); 
 
 try {
     const { init, chat } = require("./characterai");
@@ -74,7 +76,7 @@ try {
 
         if (message.channel.id === channelDataTest || message.channel.id === channelData) {
             if (message.content === "!commands") {
-                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!happy_birthday @username`, `!bastions_countdown [number]`, `!stop_countdown`");
+                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!happy_birthday @username`, `!bastions_countdown number`, `!countdown time text`, `!stop_countdown`");
                 return;
             }
 
@@ -207,8 +209,83 @@ try {
                     await message.channel.send('Error generating Excel file for merits. Please try again later.');
                 }
             }
-        }
 
+            if (message.content.startsWith("!countdown")) {
+                if (activeCountdowns.has(message.channel.id)) {
+                    await message.channel.send("A countdown is already running in this channel. Use `!stop_countdown` to stop it first.");
+                    return;
+                }
+
+                const args = message.content.split(" ");
+                args.shift();
+
+                if (args.length < 2) {
+                    await message.channel.send("Usage: `!countdown time text` (e.g., `!countdown 10m Meeting reminder` or `!countdown 1h30s Event start`). Time units are h, m, s.");
+                    return;
+                }
+
+                const timeArg = args.shift();
+                const textArg = args.join(" ");
+                const durationMs = parseTime(timeArg);
+
+                if (!durationMs) {
+                    await message.channel.send("Invalid time format. Use h, m, s (e.g., `1h30m`, `10s`, `5m`). Example: `!countdown 10m My reminder`");
+                    return;
+                }
+
+                const endTime = Date.now() + durationMs;
+                const userTag = message.author.tag;
+
+                let countdownMsg = await message.channel.send(`⏳ Timer set for **${textArg}** by ${userTag}. Time remaining: ${formatDuration(durationMs)}`);
+
+                const intervalId = setInterval(async () => {
+                    const currentCountdownData = activeCountdowns.get(message.channel.id);
+                    if (!currentCountdownData || currentCountdownData.type !== 'generic') { 
+                        clearInterval(intervalId);
+                        if (currentCountdownData) activeCountdowns.delete(message.channel.id); 
+                        return;
+                    }
+
+                    const now = Date.now();
+                    const remainingMs = currentCountdownData.endTime - now;
+
+                    if (remainingMs <= 0) {
+                        clearInterval(intervalId);
+                        activeCountdowns.delete(message.channel.id);
+                        try {
+                            if (countdownMsg && !countdownMsg.deleted) {
+                                await countdownMsg.edit(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`);
+                            }
+                        } catch (editError) {
+                            console.error("Error editing final generic countdown message:", editError);
+                            message.channel.send(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`).catch(console.error);
+                        }
+                        return;
+                    }
+
+                    try {
+                        if (countdownMsg && !countdownMsg.deleted) {
+                           await countdownMsg.edit(`⏳ Timer for **${currentCountdownData.originalText}** by ${userTag}. Time remaining: ${formatDuration(remainingMs)}`);
+                        } else {
+                            clearInterval(intervalId);
+                            activeCountdowns.delete(message.channel.id);
+                            console.log("Generic countdown message was deleted.");
+                        }
+                    } catch (error) {
+                        console.error("Error editing generic countdown message:", error);
+                    }
+                }, 1000); 
+
+                activeCountdowns.set(message.channel.id, {
+                    type: 'generic', 
+                    message: countdownMsg,
+                    timerId: intervalId, 
+                    endTime,
+                    originalText: textArg,
+                    userTag
+                });
+            }
+        } 
 
         if (message.content.startsWith("!happy_birthday")) {
             const args = message.content.split(" ");
@@ -263,25 +340,39 @@ try {
                 return;
             }
 
-            let countdownMessage = await message.channel.send(`Starting countdown from **${live}** live points...`);
-            activeCountdowns.set(message.channel.id, { message: countdownMessage, timerId: null, currentLive: live });
+            let countdownMessage = await message.channel.send(`Starting bastion countdown from **${live}** live points...`);
+            
+            activeCountdowns.set(message.channel.id, {
+                type: 'bastion', 
+                message: countdownMessage,
+                timerId: null, 
+                currentLive: live
+            });
 
             const timer = () => {
                 const countdownData = activeCountdowns.get(message.channel.id);
-                if (!countdownData) return; 
+           
+                if (!countdownData || countdownData.type !== 'bastion') {
+                    if (countdownData && countdownData.timerId) clearTimeout(countdownData.timerId); 
+                    if (countdownData) activeCountdowns.delete(message.channel.id); 
+                    return;
+                }
 
                 let currentLivePoints = countdownData.currentLive;
 
-                const timerId = setTimeout(async () => {
-                    const updatedCountdownData = activeCountdowns.get(message.channel.id); 
-                    if (!updatedCountdownData) return;
-
+                const timeoutId = setTimeout(async () => { 
+                    const updatedCountdownData = activeCountdowns.get(message.channel.id);
+                    if (!updatedCountdownData || updatedCountdownData.type !== 'bastion') {
+                         if (updatedCountdownData && updatedCountdownData.timerId) clearTimeout(updatedCountdownData.timerId);
+                         if (updatedCountdownData) activeCountdowns.delete(message.channel.id);
+                        return;
+                    }
 
                     currentLivePoints = Math.max(0, currentLivePoints - 100);
-                    updatedCountdownData.currentLive = currentLivePoints; 
+                    updatedCountdownData.currentLive = currentLivePoints;
 
-                    const numberOfAttack = currentLivePoints / 100; 
-                    const timeToFinishAllAttacks = numberOfAttack * 4; 
+                    const numberOfAttack = currentLivePoints / 100;
+                    const timeToFinishAllAttacks = numberOfAttack * 4;
                     const hours = Math.floor(timeToFinishAllAttacks / 3600);
                     const minutes = Math.floor((timeToFinishAllAttacks % 3600) / 60);
                     const seconds = Math.floor(timeToFinishAllAttacks % 60);
@@ -299,25 +390,25 @@ try {
                         if (msgToEdit && !msgToEdit.deleted) {
                             updatedCountdownData.message = await msgToEdit.edit(messageToSend);
                         } else {
-                            console.log("Countdown message was deleted or not found.");
+                            console.log("Bastion countdown message was deleted or not found.");
                             activeCountdowns.delete(message.channel.id);
                             return;
                         }
                     } catch (error) {
-                        console.error("Error editing countdown message:", error);
+                        console.error("Error editing bastion countdown message:", error);
                         activeCountdowns.delete(message.channel.id);
                         return;
                     }
 
                     if (currentLivePoints > 0) {
-                        timer(); 
+                        timer();
                     } else {
-                        activeCountdowns.delete(message.channel.id); 
+                        activeCountdowns.delete(message.channel.id);
                     }
-                }, 4000); 
+                }, 4000);
 
-                if (countdownData) { 
-                    countdownData.timerId = timerId;
+                if (countdownData) {
+                    countdownData.timerId = timeoutId; 
                 }
             };
             timer();
@@ -327,19 +418,30 @@ try {
             const countdownData = activeCountdowns.get(message.channel.id);
 
             if (countdownData && countdownData.timerId) {
-                clearTimeout(countdownData.timerId);
+                let countdownTypeMessage = "Countdown";
+                if (countdownData.type === 'bastion') {
+                    clearTimeout(countdownData.timerId); 
+                    countdownTypeMessage = "Bastion countdown";
+                } else if (countdownData.type === 'generic') {
+                    clearInterval(countdownData.timerId);
+                    countdownTypeMessage = `Timer for "${countdownData.originalText}"`;
+                } else {
+                    clearTimeout(countdownData.timerId);
+                    clearInterval(countdownData.timerId);
+                }
+                
                 activeCountdowns.delete(message.channel.id);
 
                 try {
                     if (countdownData.message && !countdownData.message.deleted) {
-                        await countdownData.message.edit("Countdown stopped manually.");
+                        await countdownData.message.edit(`${countdownTypeMessage} stopped manually by ${message.author.tag}.`);
                     }
                 } catch (editError) {
-                    console.error("Could not edit message after stopping countdown:", editError);
+                    console.error(`Could not edit message after stopping ${countdownData.type || 'unknown'} countdown:`, editError);
                 }
-                await message.channel.send("Bastion countdown stopped.");
+                await message.channel.send(`${countdownTypeMessage} stopped.`);
             } else {
-                await message.channel.send("No active bastion countdown found in this channel.");
+                await message.channel.send("No active countdown found in this channel to stop.");
             }
         }
 
@@ -365,6 +467,7 @@ try {
                 return;
             }
         }
+
         if (reaction.message.partial) {
             try {
                 await reaction.message.fetch();
@@ -373,6 +476,7 @@ try {
                 return;
             }
         }
+
          if (user.partial) {
             try {
                 await user.fetch();
@@ -381,7 +485,6 @@ try {
                 return;
             }
         }
-
 
         if (typeof reaction.emoji.name !== "string") return;
 
