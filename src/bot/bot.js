@@ -18,10 +18,10 @@ const { formatTime, parseDurationToSeconds } = require('./helpers/timer-format')
 const activeCountdowns = new Map();
 
 try {
-    const { init, chat } = require("./characterai");
+    const GeminiChat = require("./gemini");
     const translate = require("google-translate-api-x");
     const fetch = require("node-fetch");
-    const { discordToken, channelWithImage, channelData, channelDataTest } = require("./env-variables");
+    const { discordToken, channelWithImage, channelData, channelDataTest, geminiApiKey } = require("./env-variables");
     const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
     const { richMessage } = require('./discord-custom-messages');
     const countries = require("./countries");
@@ -39,6 +39,9 @@ try {
     const partials = [Partials.Message, Partials.Channel, Partials.Reaction];
 
     const client = new Client({ intents, partials });
+
+    const geminiChat = new GeminiChat(geminiApiKey);
+    geminiChat.init();
 
     client.on(Events.MessageCreate, async (message) => {
         if (!isInDevelopment && message.author.bot) return;
@@ -59,8 +62,7 @@ try {
                             requestFunction: fetch,
                         });
                         const translationText = result.text;
-                        const responseFilterAndClean = filterResponse(translationText);
-                        writePlayerInfoToGoogleSheet(responseFilterAndClean);
+                        const responseFilterAndClean = filterResponse(translationText); writePlayerInfoToGoogleSheet(responseFilterAndClean);
                     } catch (e) {
                         const userName = message.author.username;
                         const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during OCR/translation.";
@@ -76,20 +78,20 @@ try {
 
         if (message.channel.id === channelDataTest || message.channel.id === channelData) {
             if (message.content === "!commands") {
-                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!happy_birthday @username`, `!bastions_countdown number`, `!countdown <time> <message>`, `!stop_countdown`");
+                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`");
                 return;
             }
 
             if (message.content.startsWith("!players-info")) {
                 const args = message.content.split(" ");
-                args.shift(); 
+                args.shift();
 
                 let dateFilter;
                 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
                 if (args.length > 0 && dateRegex.test(args[0])) {
                     const dateArg = args[0];
-                    const parsedDate = new Date(dateArg + "T00:00:00.000Z"); 
+                    const parsedDate = new Date(dateArg + "T00:00:00.000Z");
                     if (!isNaN(parsedDate.getTime())) {
                         dateFilter = parsedDate;
                     } else {
@@ -131,14 +133,14 @@ try {
 
             if (message.content.startsWith("!players-info-merits")) {
                 const args = message.content.split(" ");
-                args.shift(); 
+                args.shift();
 
                 let dateFilterMerits;
                 const dateRegexMerits = /^\d{4}-\d{2}-\d{2}$/;
 
                 if (args.length > 0 && dateRegexMerits.test(args[0])) {
                     const dateArg = args[0];
-                    const parsedDate = new Date(dateArg + "T00:00:00.000Z"); 
+                    const parsedDate = new Date(dateArg + "T00:00:00.000Z");
                     if (!isNaN(parsedDate.getTime())) {
                         dateFilterMerits = parsedDate;
                     } else {
@@ -155,8 +157,8 @@ try {
                 } else {
                     meritsQueryRef = query(collection(db, "playersMerits"), orderBy("timestamp", "desc"));
                 }
-                
-                const querySnapshotPlayers = await getDocs(playersCollectionRef); 
+
+                const querySnapshotPlayers = await getDocs(playersCollectionRef);
                 const querySnapshotMerits = await getDocs(meritsQueryRef);
 
                 const playersData = querySnapshotPlayers.docs.map(doc => doc.data());
@@ -173,7 +175,7 @@ try {
                     const merits = item.merits ? Number(item.merits) : 0;
                     let percentage = "N/A";
                     if (power > 0 && merits > 0) {
-                         percentage = `${Math.round((merits / power) * 10000) / 100}%`;
+                        percentage = `${Math.round((merits / power) * 10000) / 100}%`;
                     }
 
                     return ({
@@ -209,10 +211,10 @@ try {
                     await message.channel.send('Error generating Excel file for merits. Please try again later.');
                 }
             }
-        } 
+        }
 
         if (message.content === "!commands") {
-            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown number`, `!countdown <time> <message>`, `!stop_countdown`");
+            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown number`, `!countdown time message`, `!stop_countdown`, `!bot message`, `!resume`");
             return;
         }
 
@@ -270,30 +272,30 @@ try {
             }
 
             let countdownMessage = await message.channel.send(`Starting bastion countdown from **${live}** live points...`);
-            
+
             activeCountdowns.set(message.channel.id, {
-                type: 'bastion', 
+                type: 'bastion',
                 message: countdownMessage,
-                timerId: null, 
+                timerId: null,
                 currentLive: live
             });
 
             const timer = () => {
                 const countdownData = activeCountdowns.get(message.channel.id);
-           
+
                 if (!countdownData || countdownData.type !== 'bastion') {
-                    if (countdownData && countdownData.timerId) clearTimeout(countdownData.timerId); 
-                    if (countdownData) activeCountdowns.delete(message.channel.id); 
+                    if (countdownData && countdownData.timerId) clearTimeout(countdownData.timerId);
+                    if (countdownData) activeCountdowns.delete(message.channel.id);
                     return;
                 }
 
                 let currentLivePoints = countdownData.currentLive;
 
-                const timeoutId = setTimeout(async () => { 
+                const timeoutId = setTimeout(async () => {
                     const updatedCountdownData = activeCountdowns.get(message.channel.id);
                     if (!updatedCountdownData || updatedCountdownData.type !== 'bastion') {
-                         if (updatedCountdownData && updatedCountdownData.timerId) clearTimeout(updatedCountdownData.timerId);
-                         if (updatedCountdownData) activeCountdowns.delete(message.channel.id);
+                        if (updatedCountdownData && updatedCountdownData.timerId) clearTimeout(updatedCountdownData.timerId);
+                        if (updatedCountdownData) activeCountdowns.delete(message.channel.id);
                         return;
                     }
 
@@ -337,7 +339,7 @@ try {
                 }, 4000);
 
                 if (countdownData) {
-                    countdownData.timerId = timeoutId; 
+                    countdownData.timerId = timeoutId;
                 }
             };
             timer();
@@ -350,7 +352,7 @@ try {
             }
 
             const args = message.content.split(" ");
-            args.shift(); 
+            args.shift();
             if (args.length < 2) {
                 await message.channel.send("Usage: `!countdown <time> <message>` (e.g., `!countdown 1m30s My event starts soon!`) \nTime format examples: `10s`, `5m`, `1h`, `1h30m`, `30m10s`");
                 return;
@@ -373,9 +375,9 @@ try {
                 countdownMessage = await message.channel.send(`Timer set for **${formatTime(durationSeconds)}** for: "${countdownText}"`);
             } catch (sendError) {
                 console.error("Error sending initial countdown message:", sendError);
-                return; 
+                return;
             }
-            
+
             const countdownData = {
                 type: 'generic',
                 message: countdownMessage,
@@ -388,10 +390,10 @@ try {
 
             const intervalId = setInterval(async () => {
                 const currentCountdown = activeCountdowns.get(message.channel.id);
-  
+
                 if (!currentCountdown || currentCountdown.type !== 'generic' || currentCountdown.timerId !== intervalId) {
                     clearInterval(intervalId);
-                
+
                     if (currentCountdown && currentCountdown.timerId === intervalId) {
                         activeCountdowns.delete(message.channel.id);
                     }
@@ -406,11 +408,11 @@ try {
                         if (currentCountdown.message && !currentCountdown.message.deleted) {
                             await currentCountdown.message.edit(`**Finished!** "${currentCountdown.originalText}"`);
                         } else {
-                             await message.channel.send(`**Finished!** "${currentCountdown.originalText}" (Original timer message was deleted)`);
+                            await message.channel.send(`**Finished!** "${currentCountdown.originalText}" (Original timer message was deleted)`);
                         }
                     } catch (editError) {
                         console.error("Error editing countdown finished message:", editError);
-                 
+
                         try {
                             await message.channel.send(`**Finished!** "${currentCountdown.originalText}" (Timer message update failed)`);
                         } catch (finalSendError) {
@@ -421,27 +423,27 @@ try {
                     const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
                     try {
                         if (currentCountdown.message && !currentCountdown.message.deleted) {
-                           await currentCountdown.message.edit(`Time remaining: **${formatTime(remainingSeconds)}** for: "${currentCountdown.originalText}"`);
+                            await currentCountdown.message.edit(`Time remaining: **${formatTime(remainingSeconds)}** for: "${currentCountdown.originalText}"`);
                         } else {
                             console.log("Generic countdown message was deleted. Stopping countdown for:", currentCountdown.originalText);
                             clearInterval(intervalId);
                             activeCountdowns.delete(message.channel.id);
-                   
+
                             await message.channel.send(`Timer for "${currentCountdown.originalText}" stopped as its message was deleted.`);
                         }
                     } catch (editError) {
                         console.error("Error editing generic countdown message:", editError);
                         clearInterval(intervalId);
                         activeCountdowns.delete(message.channel.id);
-                
+
                         await message.channel.send(`Timer for "${currentCountdown.originalText}" stopped due to an error during update.`);
                     }
                 }
-            }, 5000); 
+            }, 5000);
 
             currentCountdownData = activeCountdowns.get(message.channel.id);
-            if(currentCountdownData && currentCountdownData.endTime === endTime) { 
-                 currentCountdownData.timerId = intervalId;
+            if (currentCountdownData && currentCountdownData.endTime === endTime) {
+                currentCountdownData.timerId = intervalId;
             } else {
                 clearInterval(intervalId);
             }
@@ -453,7 +455,7 @@ try {
             if (countdownData && countdownData.timerId) {
                 let countdownTypeMessage = "Countdown";
                 if (countdownData.type === 'bastion') {
-                    clearTimeout(countdownData.timerId); 
+                    clearTimeout(countdownData.timerId);
                     countdownTypeMessage = "Bastion countdown";
                 } else if (countdownData.type === 'generic') {
                     clearInterval(countdownData.timerId);
@@ -463,7 +465,7 @@ try {
                     clearInterval(countdownData.timerId);
                     countdownTypeMessage = "Unknown countdown";
                 }
-                
+
                 activeCountdowns.delete(message.channel.id);
 
                 let finalStopMessage = `${countdownTypeMessage} stopped manually by ${message.author.tag}.`;
@@ -493,25 +495,99 @@ try {
                         }
                     }
                 }
-
             } else {
                 await message.channel.send("No active countdown found in this channel to stop.");
             }
         }
 
+        if (message.content.startsWith("!bot")) {
+            const args = message.content.split(" ");
+            args.shift();
+
+            if (args.length === 0) {
+                await message.channel.send("Please write a message! Usage: `!bot your message here`");
+                return;
+            }
+
+            const userMessage = args.join(" ");
+            const conversationId = `channel_${message.channel.id}`;
+
+            try {
+                await message.channel.sendTyping();
+
+                const response = await geminiChat.chat(userMessage, conversationId);
+
+                if (response.length > 2000) {
+                    const chunks = response.match(/.{1,1900}/g) || [response]; for (const chunk of chunks) {
+                        await message.channel.send(chunk);
+                    }
+                } else {
+                    await message.channel.send(response);
+                }
+            } catch (error) {
+                console.error("Error in !bot command:", error);
+                await message.channel.send("Sorry, an error occurred while processing your message. Please try again.");
+            }
+        }
+
+        if (message.content === "!resume") {
+            try {
+                await message.channel.sendTyping();
+
+                const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+                const messages = await message.channel.messages.fetch({ limit: 100 });
+
+                const recentMessages = messages
+                    .filter(msg =>
+                        msg.createdAt > eightHoursAgo &&
+                        !msg.author.bot &&
+                        !msg.content.startsWith('!') &&
+                        msg.content.length > 0 &&
+                        msg.content.length < 500
+                    )
+                    .map(msg => ({
+                        author: msg.author.username,
+                        content: msg.content,
+                        timestamp: msg.createdAt
+                    }))
+                    .reverse()
+                    .slice(0, 30);
+
+                if (recentMessages.length === 0) {
+                    await message.channel.send("There are not enough messages from the last 8 hours to create a summary.");
+                    return;
+                }
+
+                const summary = await geminiChat.summarizeMessages(recentMessages);
+
+                if (summary.length > 2000) {
+                    const chunks = summary.match(/.{1,1900}/g) || [summary];
+                    for (let i = 0; i < chunks.length; i++) {
+                        const prefix = i === 0 ? "**📋 Summary of the last 8 hours:**\n\n" : "";
+                        await message.channel.send(prefix + chunks[i]);
+                    }
+                } else {
+                    await message.channel.send(`**📋 Summary of the last 8 hours:**\n\n${summary}`);
+                }
+            } catch (error) {
+                console.error("Error in !resume command:", error);
+                await message.channel.send("Sorry, an error occurred while creating the summary. Please try again.");
+            }        }
+
         if (!isInDevelopment && message.channel.type === ChannelType.DM && !message.author.bot) {
             try {
-                const response = await chat(message.content);
+                const conversationId = `dm_${message.author.id}`;
+                const response = await geminiChat.chat(message.content, conversationId);
                 message.author.send(response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
             } catch (chatError) {
-                console.log("Error getting response from characterAI:", chatError);
-                message.author.send("Sorry, I couldn't process your message right now.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
+                console.log("Error getting response from Gemini:", chatError);
+                message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
             }
         }
     });
 
     client.on(Events.MessageReactionAdd, async (reaction, user) => {
-        if (user.bot) return; 
+        if (user.bot) return;
 
         if (reaction.partial) {
             try {
@@ -531,7 +607,7 @@ try {
             }
         }
 
-         if (user.partial) {
+        if (user.partial) {
             try {
                 await user.fetch();
             } catch (error) {
@@ -555,7 +631,7 @@ try {
             const res = await translate(messageToTranslate, {
                 to: countryInformation.langs[0],
                 forceBatch: false,
-                autoCorrect: true, 
+                autoCorrect: true,
                 requestFunction: fetch,
             });
             user.send(`${quote(messageToTranslate)}\n\n${res.text}\n\n`).catch(dmError =>
@@ -570,9 +646,6 @@ try {
 
     client.login(discordToken);
     console.log("Bot is logged in and ready.");
-    if (!isInDevelopment) {
-        init().then(() => console.log("CharacterAI initialized.")).catch(e => console.error("CharacterAI init error:", e));
-    }
 
 } catch (e) {
     console.log("The bot crashed: ", e);
