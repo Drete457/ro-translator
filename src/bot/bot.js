@@ -500,7 +500,7 @@ try {
             }
         }
 
-        if (message.content.startsWith("!bot")) {
+        if (message.content.startsWith("!ICE")) {
             const args = message.content.split(" ");
             args.shift();
 
