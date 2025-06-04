@@ -13,9 +13,9 @@ const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
 const fs = require('fs');
 const { birthdayMemes, generateBirthdayMessage } = require('./birthday');
-const { formatDuration, parseTime } = require('./helpers/format-time');
+const { formatTime, parseDurationToSeconds } = require('./helpers/timer-format');
 
-const activeCountdowns = new Map(); 
+const activeCountdowns = new Map();
 
 try {
     const { init, chat } = require("./characterai");
@@ -76,7 +76,7 @@ try {
 
         if (message.channel.id === channelDataTest || message.channel.id === channelData) {
             if (message.content === "!commands") {
-                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!happy_birthday @username`, `!bastions_countdown number`, `!countdown time text`, `!stop_countdown`");
+                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!happy_birthday @username`, `!bastions_countdown number`, `!countdown <time> <message>`, `!stop_countdown`");
                 return;
             }
 
@@ -212,7 +212,7 @@ try {
         } 
 
         if (message.content === "!commands") {
-            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown number`, `!countdown time text`, `!stop_countdown`");
+            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown number`, `!countdown <time> <message>`, `!stop_countdown`");
             return;
         }
 
@@ -350,73 +350,101 @@ try {
             }
 
             const args = message.content.split(" ");
-            args.shift();
-
+            args.shift(); 
             if (args.length < 2) {
-                await message.channel.send("Usage: `!countdown time text` (e.g., `!countdown 10m Meeting reminder` or `!countdown 1h30s Event start`). Time units are h, m, s.");
+                await message.channel.send("Usage: `!countdown <time> <message>` (e.g., `!countdown 1m30s My event starts soon!`) \nTime format examples: `10s`, `5m`, `1h`, `1h30m`, `30m10s`");
                 return;
             }
 
-            const timeArg = args.shift();
-            const textArg = args.join(" ");
-            const durationMs = parseTime(timeArg);
+            const timeArg = args[0];
+            const countdownText = args.slice(1).join(" ");
 
-            if (!durationMs) {
-                await message.channel.send("Invalid time format. Use h, m, s (e.g., `1h30m`, `10s`, `5m`). Example: `!countdown 10m My reminder`");
+            const durationSeconds = parseDurationToSeconds(timeArg);
+
+            if (durationSeconds === null || durationSeconds <= 0) {
+                await message.channel.send("Invalid time format or duration. Use format like `1h30m10s`, `10m`, `30s`. Time must be greater than 0.");
                 return;
             }
 
-            const endTime = Date.now() + durationMs;
-            const userTag = message.author.tag;
+            const endTime = Date.now() + durationSeconds * 1000;
+            let countdownMessage;
 
-            let countdownMsg = await message.channel.send(`⏳ Timer set for **${textArg}** by ${userTag}. Time remaining: ${formatDuration(durationMs)}`);
+            try {
+                countdownMessage = await message.channel.send(`Timer set for **${formatTime(durationSeconds)}** for: "${countdownText}"`);
+            } catch (sendError) {
+                console.error("Error sending initial countdown message:", sendError);
+                return; 
+            }
+            
+            const countdownData = {
+                type: 'generic',
+                message: countdownMessage,
+                endTime: endTime,
+                originalText: countdownText,
+                channelId: message.channel.id,
+                timerId: null
+            };
+            activeCountdowns.set(message.channel.id, countdownData);
 
             const intervalId = setInterval(async () => {
-                const currentCountdownData = activeCountdowns.get(message.channel.id);
-                if (!currentCountdownData || currentCountdownData.type !== 'generic') {
+                const currentCountdown = activeCountdowns.get(message.channel.id);
+  
+                if (!currentCountdown || currentCountdown.type !== 'generic' || currentCountdown.timerId !== intervalId) {
                     clearInterval(intervalId);
-                    if (currentCountdownData) activeCountdowns.delete(message.channel.id);
+                
+                    if (currentCountdown && currentCountdown.timerId === intervalId) {
+                        activeCountdowns.delete(message.channel.id);
+                    }
                     return;
                 }
 
-                const now = Date.now();
-                const remainingMs = currentCountdownData.endTime - now;
-
+                const remainingMs = currentCountdown.endTime - Date.now();
                 if (remainingMs <= 0) {
                     clearInterval(intervalId);
                     activeCountdowns.delete(message.channel.id);
                     try {
-                        if (countdownMsg && !countdownMsg.deleted) {
-                            await countdownMsg.edit(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`);
+                        if (currentCountdown.message && !currentCountdown.message.deleted) {
+                            await currentCountdown.message.edit(`**Finished!** "${currentCountdown.originalText}"`);
+                        } else {
+                             await message.channel.send(`**Finished!** "${currentCountdown.originalText}" (Original timer message was deleted)`);
                         }
                     } catch (editError) {
-                        console.error("Error editing final generic countdown message:", editError);
-                        message.channel.send(`🔔 Time's up for ${userTag}! Reminder: **${currentCountdownData.originalText}**`).catch(console.error);
+                        console.error("Error editing countdown finished message:", editError);
+                 
+                        try {
+                            await message.channel.send(`**Finished!** "${currentCountdown.originalText}" (Timer message update failed)`);
+                        } catch (finalSendError) {
+                            console.error("Error sending final countdown finished message:", finalSendError);
+                        }
                     }
-                    return;
-                }
-
-                try {
-                    if (countdownMsg && !countdownMsg.deleted) {
-                        await countdownMsg.edit(`⏳ Timer for **${currentCountdownData.originalText}** by ${userTag}. Time remaining: ${formatDuration(remainingMs)}`);
-                    } else {
+                } else {
+                    const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+                    try {
+                        if (currentCountdown.message && !currentCountdown.message.deleted) {
+                           await currentCountdown.message.edit(`Time remaining: **${formatTime(remainingSeconds)}** for: "${currentCountdown.originalText}"`);
+                        } else {
+                            console.log("Generic countdown message was deleted. Stopping countdown for:", currentCountdown.originalText);
+                            clearInterval(intervalId);
+                            activeCountdowns.delete(message.channel.id);
+                   
+                            await message.channel.send(`Timer for "${currentCountdown.originalText}" stopped as its message was deleted.`);
+                        }
+                    } catch (editError) {
+                        console.error("Error editing generic countdown message:", editError);
                         clearInterval(intervalId);
                         activeCountdowns.delete(message.channel.id);
-                        console.log("Generic countdown message was deleted.");
+                
+                        await message.channel.send(`Timer for "${currentCountdown.originalText}" stopped due to an error during update.`);
                     }
-                } catch (error) {
-                    console.error("Error editing generic countdown message:", error);
                 }
-            }, 1000);
+            }, 5000); 
 
-            activeCountdowns.set(message.channel.id, {
-                type: 'generic',
-                message: countdownMsg,
-                timerId: intervalId,
-                endTime,
-                originalText: textArg,
-                userTag
-            });
+            currentCountdownData = activeCountdowns.get(message.channel.id);
+            if(currentCountdownData && currentCountdownData.endTime === endTime) { 
+                 currentCountdownData.timerId = intervalId;
+            } else {
+                clearInterval(intervalId);
+            }
         }
 
         if (message.content === "!stop_countdown") {
@@ -433,18 +461,39 @@ try {
                 } else {
                     clearTimeout(countdownData.timerId);
                     clearInterval(countdownData.timerId);
+                    countdownTypeMessage = "Unknown countdown";
                 }
                 
                 activeCountdowns.delete(message.channel.id);
 
-                try {
-                    if (countdownData.message && !countdownData.message.deleted) {
-                        await countdownData.message.edit(`${countdownTypeMessage} stopped manually by ${message.author.tag}.`);
+                let finalStopMessage = `${countdownTypeMessage} stopped manually by ${message.author.tag}.`;
+                let messageUpdatedOrSent = false;
+
+                if (countdownData.message && !countdownData.message.deleted) {
+                    try {
+                        await countdownData.message.edit(finalStopMessage);
+                        messageUpdatedOrSent = true;
+                    } catch (editError) {
+                        console.error(`Could not edit original message for ${countdownTypeMessage} stop:`, editError);
+                        finalStopMessage += " (Original message update failed)";
                     }
-                } catch (editError) {
-                    console.error(`Could not edit message after stopping ${countdownData.type || 'unknown'} countdown:`, editError);
+                } else if (countdownData.type === 'generic' || countdownData.type === 'bastion') {
+                    finalStopMessage += " (Original message was deleted or not found)";
                 }
-                await message.channel.send(`${countdownTypeMessage} stopped.`);
+
+                if (!messageUpdatedOrSent) {
+                    try {
+                        await message.channel.send(finalStopMessage);
+                    } catch (sendError) {
+                        console.error(`Could not send new confirmation for ${countdownTypeMessage} stop:`, sendError);
+                        try {
+                            await message.channel.send(`${countdownTypeMessage} stopped.`);
+                        } catch (absFallbackErr) {
+                            console.error("Absolute fallback send error for stop_countdown:", absFallbackErr);
+                        }
+                    }
+                }
+
             } else {
                 await message.channel.send("No active countdown found in this channel to stop.");
             }
