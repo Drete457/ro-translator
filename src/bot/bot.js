@@ -211,10 +211,8 @@ try {
                     await message.channel.send('Error generating Excel file for merits. Please try again later.');
                 }
             }
-        }
-
-        if (message.content === "!commands") {
-            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown number`, `!countdown time message`, `!stop_countdown`, `!bot message`, `!resume`");
+        } if (message.content === "!commands") {
+            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`");
             return;
         }
 
@@ -254,30 +252,39 @@ try {
                 console.error("Error sending birthday message:", error);
                 await message.channel.send("Sorry, I couldn't send the birthday message. Please try again later.");
             }
-        }
-
-        if (message.content.startsWith("!bastions_countdown")) {
+        } if (message.content.startsWith("!bastions_countdown")) {
             if (activeCountdowns.has(message.channel.id)) {
                 await message.channel.send("A countdown is already running in this channel. Use `!stop_countdown` to stop it first.");
                 return;
             }
 
             const args = message.content.split(" ");
-            const argumentWithNumber = args.find(arg => !isNaN(arg) && Number(arg) > 0);
+            args.shift(); 
 
-            let live = Number(argumentWithNumber);
-            if (isNaN(live) || live <= 100) {
-                await message.channel.send("Please specify a valid number of live points (e.g., >100)! Usage: `!bastions_countdown [number]`");
+            if (args.length < 2) {
+                await message.channel.send("Usage: `!bastions_countdown live_points damage_per_second`\nExample: `!bastions_countdown 5000 25` (5000 live, losing 25 per second)");
                 return;
             }
 
-            let countdownMessage = await message.channel.send(`Starting bastion countdown from **${live}** live points...`);
+            const live = Number(args[0]);
+            const damagePerSecond = Number(args[1]);
+
+            if (isNaN(live) || live <= 0) {
+                await message.channel.send("Please specify a valid number of live points (greater than 0)!");
+                return;
+            }
+
+            if (isNaN(damagePerSecond) || damagePerSecond <= 0) {
+                await message.channel.send("Please specify a valid damage per second (greater than 0)!");
+                return;
+            } let countdownMessage = await message.channel.send(`Starting bastion countdown from **${live}** live points, losing **${damagePerSecond}** per second...`);
 
             activeCountdowns.set(message.channel.id, {
                 type: 'bastion',
                 message: countdownMessage,
                 timerId: null,
-                currentLive: live
+                currentLive: live,
+                damagePerSecond: damagePerSecond
             });
 
             const timer = () => {
@@ -290,7 +297,6 @@ try {
                 }
 
                 let currentLivePoints = countdownData.currentLive;
-
                 const timeoutId = setTimeout(async () => {
                     const updatedCountdownData = activeCountdowns.get(message.channel.id);
                     if (!updatedCountdownData || updatedCountdownData.type !== 'bastion') {
@@ -299,19 +305,18 @@ try {
                         return;
                     }
 
-                    currentLivePoints = Math.max(0, currentLivePoints - 100);
+                    currentLivePoints = Math.max(0, currentLivePoints - updatedCountdownData.damagePerSecond);
                     updatedCountdownData.currentLive = currentLivePoints;
 
-                    const numberOfAttack = currentLivePoints / 100;
-                    const timeToFinishAllAttacks = numberOfAttack * 4;
-                    const hours = Math.floor(timeToFinishAllAttacks / 3600);
-                    const minutes = Math.floor((timeToFinishAllAttacks % 3600) / 60);
-                    const seconds = Math.floor(timeToFinishAllAttacks % 60);
-                    const timeToFinishAllAttacksString = `${hours}h ${minutes}m ${seconds}s`;
+                    const secondsRemaining = currentLivePoints > 0 ? Math.ceil(currentLivePoints / updatedCountdownData.damagePerSecond) : 0;
+                    const hours = Math.floor(secondsRemaining / 3600);
+                    const minutes = Math.floor((secondsRemaining % 3600) / 60);
+                    const seconds = secondsRemaining % 60;
+                    const timeRemainingString = `${hours}h ${minutes}m ${seconds}s`;
 
                     let messageToSend;
                     if (currentLivePoints > 0) {
-                        messageToSend = `**${currentLivePoints}** live points left. \n\n **Estimated time remaining:** ${timeToFinishAllAttacksString}`;
+                        messageToSend = `**${currentLivePoints}** live points left (losing **${updatedCountdownData.damagePerSecond}**/sec)\n\n**Estimated time remaining:** ${timeRemainingString}`;
                     } else {
                         messageToSend = `**Bastion destroyed!** Countdown finished.`;
                     }
@@ -336,7 +341,7 @@ try {
                     } else {
                         activeCountdowns.delete(message.channel.id);
                     }
-                }, 4000);
+                }, 1000);
 
                 if (countdownData) {
                     countdownData.timerId = timeoutId;
@@ -505,7 +510,7 @@ try {
             args.shift();
 
             if (args.length === 0) {
-                await message.channel.send("Please write a message! Usage: `!bot your message here`");
+                await message.channel.send("Please write a message! Usage: `!ICE your message here`");
                 return;
             }
 
@@ -525,7 +530,7 @@ try {
                     await message.channel.send(response);
                 }
             } catch (error) {
-                console.error("Error in !bot command:", error);
+                console.error("Error in !ICE command:", error);
                 await message.channel.send("Sorry, an error occurred while processing your message. Please try again.");
             }
         }
@@ -572,7 +577,8 @@ try {
             } catch (error) {
                 console.error("Error in !resume command:", error);
                 await message.channel.send("Sorry, an error occurred while creating the summary. Please try again.");
-            }        }
+            }
+        }
 
         if (!isInDevelopment && message.channel.type === ChannelType.DM && !message.author.bot) {
             try {
