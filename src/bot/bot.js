@@ -9,6 +9,7 @@ const {
     AttachmentBuilder
 } = require("discord.js");
 const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
+const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
 const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
 const fs = require('fs');
@@ -78,7 +79,7 @@ try {
 
         if (message.channel.id === channelDataTest || message.channel.id === channelData) {
             if (message.content === "!commands") {
-                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`");
+                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`");
                 return;
             }
 
@@ -212,7 +213,67 @@ try {
                 }
             }
 
-            
+            if (message.content === "!player_time_zone") {
+                try {
+                    await message.channel.sendTyping();
+
+                    const db = await getFirebase();
+                    const playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
+                    const querySnapshot = await getDocs(playersQueryRef);
+                    const playersData = querySnapshot.docs.map(doc => doc.data());
+
+                    if (playersData.length === 0) {
+                        await message.channel.send("No player data found in the database.");
+                        return;
+                    }
+                    const analysis = analyzePlayerTimezones(playersData);
+
+                    let responseMessage = `🌍 **ICE Clan Timezone Analysis** 🌍\n\n`;
+                    responseMessage += `📊 **Data Overview:**\n`;
+                    responseMessage += `• Total players: ${analysis.totalPlayers}\n`;
+                    responseMessage += `• Players with timezone data: ${analysis.playersWithTimezone}\n\n`;
+
+                    if (analysis.playersWithTimezone === 0) {
+                        responseMessage += `❌ No timezone information available for analysis.\n`;
+                        responseMessage += `Please make sure players update their timezone information in the database.`;
+                    } else {
+                        responseMessage += `🏆 **Top Timezones:**\n`;
+                        analysis.topTimezones.forEach((tz, index) => {
+                            const percentage = Math.round((tz[1] / analysis.playersWithTimezone) * 100);
+                            responseMessage += `${index + 1}. ${tz[0]}: ${tz[1]} players (${percentage}%)\n`;
+                        });
+
+                        if (analysis.optimalTimes.length > 0) {
+                            responseMessage += `\n⏰ **Best Coordination Times:**\n`;
+                            analysis.optimalTimes.forEach((time, index) => {
+                                responseMessage += `${index + 1}. **${time.utcTime}** - ${time.activePlayersCount} players likely active\n`;
+                                if (time.localTimes.length > 0 && time.localTimes.length <= 5) {
+                                    responseMessage += `   Local times: ${time.localTimes.slice(0, 3).join(', ')}\n`;
+                                }
+                            });
+                        }
+
+                        responseMessage += `\n💡 **Recommendations:**\n`;
+                        analysis.recommendations.forEach(rec => {
+                            responseMessage += `• ${rec}\n`;
+                        });
+                    }
+
+                    if (responseMessage.length > 2000) {
+                        const chunks = responseMessage.match(/.{1,1900}/g) || [responseMessage];
+                        for (const chunk of chunks) {
+                            await message.channel.send(chunk);
+                        }
+                    } else {
+                        await message.channel.send(responseMessage);
+                    }
+
+                } catch (error) {
+                    console.error("Error in !player_time_zone command:", error);
+                    await message.channel.send("Sorry, an error occurred while analyzing timezone data. Please try again.");
+                }
+            }
+
         } if (message.content === "!commands") {
             await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`");
             return;
