@@ -211,6 +211,8 @@ try {
                     await message.channel.send('Error generating Excel file for merits. Please try again later.');
                 }
             }
+
+            
         } if (message.content === "!commands") {
             await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`");
             return;
@@ -252,14 +254,16 @@ try {
                 console.error("Error sending birthday message:", error);
                 await message.channel.send("Sorry, I couldn't send the birthday message. Please try again later.");
             }
-        } if (message.content.startsWith("!bastions_countdown")) {
+        }
+
+        if (message.content.startsWith("!bastions_countdown")) {
             if (activeCountdowns.has(message.channel.id)) {
                 await message.channel.send("A countdown is already running in this channel. Use `!stop_countdown` to stop it first.");
                 return;
             }
 
             const args = message.content.split(" ");
-            args.shift(); 
+            args.shift();
 
             if (args.length < 2) {
                 await message.channel.send("Usage: `!bastions_countdown live_points damage_per_second`\nExample: `!bastions_countdown 5000 25` (5000 live, losing 25 per second)");
