@@ -1,4 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const fs = require('fs');
+const path = require('path');
 
 class GeminiChat {
     constructor(apiKey) {
@@ -6,6 +8,9 @@ class GeminiChat {
         this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
         this.conversations = new Map(); 
         this.isActive = false;
+        this.conversationsFile = path.join(__dirname, 'conversations.json');
+        this.lastSaveTime = Date.now();
+        this.saveInterval = 30000; // Save every 30 seconds
 
         this.systemPrompt = `You are Leroy Jenkins, a specialized assistant for leaders of the ICE clan in the Call of Dragons game. 
         Your function is to help leaders with strategies, attack coordination, resource management, and any clan-related matters.
@@ -36,6 +41,9 @@ class GeminiChat {
 
     async init() {
         try {
+            // Load existing conversations first
+            this.loadConversations();
+            
             const testChat = this.model.startChat({
                 history: [],
                 generationConfig: {
@@ -46,10 +54,21 @@ class GeminiChat {
             await testChat.sendMessage("test");
             this.isActive = true;
             console.log("Gemini AI initialized successfully");
+            
+            // Start auto-save interval
+            this.startAutoSave();
         } catch (error) {
             console.error("Error initializing Gemini AI:", error);
             this.isActive = false;
         }
+    }
+
+    // Start automatic saving interval
+    startAutoSave() {
+        setInterval(() => {
+            this.autoSaveConversations();
+        }, this.saveInterval);
+        console.log(`Auto-save started: conversations will be saved every ${this.saveInterval/1000} seconds`);
     }
 
     getConversationHistory(conversationId) {
@@ -69,6 +88,9 @@ class GeminiChat {
         
         this.conversations.set(conversationId, history);
         this.cleanupOldConversations();
+        
+        // Auto-save conversations periodically
+        this.autoSaveConversations();
     }
 
     cleanupOldConversations() {
@@ -144,6 +166,89 @@ class GeminiChat {
 
     isAiActive() {
         return this.isActive;
+   }
+
+    // Load conversations from file on startup
+    loadConversations() {
+        try {
+            if (fs.existsSync(this.conversationsFile)) {
+                const data = fs.readFileSync(this.conversationsFile, 'utf8');
+                const conversationsData = JSON.parse(data);
+                
+                // Convert plain object back to Map
+                this.conversations = new Map(Object.entries(conversationsData.conversations || {}));
+                
+                console.log(`Loaded ${this.conversations.size} conversations from file`);
+                
+                // Clean up old conversations (older than 7 days)
+                this.cleanupOldStoredConversations();
+            } else {
+                console.log('No existing conversations file found, starting fresh');
+            }
+        } catch (error) {
+            console.error('Error loading conversations:', error);
+            this.conversations = new Map(); // Reset to empty if corrupted
+        }
+    }
+
+    // Save conversations to file
+    saveConversations() {
+        try {
+            const conversationsData = {
+                conversations: Object.fromEntries(this.conversations),
+                lastSaved: new Date().toISOString(),
+                version: "1.0"
+            };
+            
+            // Create backup of existing file
+            if (fs.existsSync(this.conversationsFile)) {
+                const backupFile = this.conversationsFile + '.backup';
+                fs.copyFileSync(this.conversationsFile, backupFile);
+            }
+            
+            fs.writeFileSync(this.conversationsFile, JSON.stringify(conversationsData, null, 2));
+            this.lastSaveTime = Date.now();
+            console.log(`Saved ${this.conversations.size} conversations to file`);
+        } catch (error) {
+            console.error('Error saving conversations:', error);
+        }
+    }
+
+    // Auto-save conversations periodically
+    autoSaveConversations() {
+        const now = Date.now();
+        if (now - this.lastSaveTime >= this.saveInterval) {
+            this.saveConversations();
+        }
+    }
+
+    // Clean up conversations older than 7 days
+    cleanupOldStoredConversations() {
+        const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        let removedCount = 0;
+        
+        for (const [conversationId, history] of this.conversations.entries()) {
+            // Check if conversation has recent activity
+            const lastMessageTime = this.getLastMessageTime(conversationId);
+            if (lastMessageTime && lastMessageTime < oneWeekAgo) {
+                this.conversations.delete(conversationId);
+                removedCount++;
+            }
+        }
+        
+        if (removedCount > 0) {
+            console.log(`Cleaned up ${removedCount} old conversations (older than 7 days)`);
+        }
+    }
+
+    // Get last message time for a conversation
+    getLastMessageTime(conversationId) {
+        const history = this.conversations.get(conversationId);
+        if (!history || history.length === 0) return null;
+        
+        // Try to get timestamp from conversation ID or use current time as fallback
+        const match = conversationId.match(/(\d+)$/);
+        return match ? parseInt(match[1]) : Date.now();
     }
 }
 

@@ -10,6 +10,7 @@ const googleSheetId = process.env.google_sheet_id;
 const googleClientEmail = process.env.google_client_email;
 const googlePrivateKey = process.env.google_private_key.replace(/\\n/g, "\n");
 const googleCalendarId = process.env.google_calendar_id;
+const discordOwnerId = process.env.discord_owner_id;
 
 module.exports = { 
     discordToken, 
@@ -23,5 +24,6 @@ module.exports = {
     googleSheetId, 
     googleClientEmail, 
     googlePrivateKey,
-    googleCalendarId 
+    googleCalendarId, 
+    discordOwnerId
 };
