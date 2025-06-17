@@ -326,8 +326,10 @@ try {
                         await safeSendMessage(message.channel, "❌ Error saving conversations.", { fallbackUser: message.author });
                     }
                 }
-            }            if (message.content === "!commands") {
-                let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`";
+            }
+
+            if (message.content === "!commands") {
+                let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!analyze_images optional_message`, `!resume`";
 
                 if (calendarHelper) {
                     commandsText += ", `!help_game_event`, `!help_calendar_event`";
@@ -339,22 +341,21 @@ try {
 
             if (message.content.startsWith("!help_game_event")) {
                 const helpMessage = `📅 **Game Events Command:**
-            \`!game_event type date time duration\`
+                    \`!game_event type date time duration\`
 
-            **Types available:**
-            🏰 \`war\` - Clan war events
-            ⚔️ \`rally\` - Rally events  
-            👑 \`kvk\` - Kingdom vs Kingdom events
-            🎯 \`training\` - Training sessions
-            💬 \`meeting\` - Clan meetings
-                    
-            **Examples:**
-            !game_event war 15/06/2025 20:00 2h
-            !game_event rally 16/06/2025 19:30 1h30m
-            !game_event kvk 20/06/2025 21:00 3h
-            !game_event training 18/06/2025 18:00 1h
-            !game_event meeting 17/06/2025 20:00 45m
-            `;
+                    **Types available:**
+                    🏰 \`war\` - Clan war events
+                    ⚔️ \`rally\` - Rally events  
+                    👑 \`kvk\` - Kingdom vs Kingdom events
+                    🎯 \`training\` - Training sessions
+                    💬 \`meeting\` - Clan meetings
+
+                    **Examples:**
+                    !game_event war 15/06/2025 20:00 2h
+                    !game_event rally 16/06/2025 19:30 1h30m
+                    !game_event kvk 20/06/2025 21:00 3h
+                    !game_event training 18/06/2025 18:00 1h
+                    !game_event meeting 17/06/2025 20:00 45m`;
 
                 await message.channel.send(helpMessage);
                 return;
@@ -362,15 +363,15 @@ try {
 
             if (message.content.startsWith("!help_calendar_event")) {
                 const helpMessage = `📝 **Custom Calendar Event:**
-            \`!calendar_event "title" date time duration "description>"\`
+                     \`!calendar_event "title" date time duration "description>"\`
 
-            **Example:**
-            \`!calendar_event "Strategy Meeting" 15/06/2025 19:00 1h "Weekly clan strategy discussion"\`
+                     **Example:**
+                     \`!calendar_event "Strategy Meeting" 15/06/2025 19:00 1h "Weekly clan strategy discussion"\`
 
-            💡 **Tips:**
-            • Use DD/MM/YYYY format for dates
-            • Duration: 1h, 30m, 1h30m, etc.
-            • Events are automatically added to the ICE Alliance calendar`;
+                     💡 **Tips:**
+                     • Use DD/MM/YYYY format for dates
+                     • Duration: 1h, 30m, 1h30m, etc.
+                     • Events are automatically added to the ICE Alliance calendar`;
 
                 await message.channel.send(helpMessage);
                 return;
@@ -797,7 +798,35 @@ try {
                 try {
                     await message.channel.sendTyping();
 
-                    const response = await geminiChat.chat(userMessage, conversationId);
+                    const recentMessages = await message.channel.messages.fetch({ limit: 5 });
+                    const imageAttachments = [];
+
+                    for (const [_, msg] of recentMessages) {
+                        if (msg.attachments.size > 0) {
+                            for (const attachment of msg.attachments.values()) {
+                                if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                                    imageAttachments.push({
+                                        url: attachment.url,
+                                        name: attachment.name,
+                                        author: msg.author.username,
+                                        timestamp: msg.createdAt
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    let response;
+                    if (imageAttachments.length > 0) {
+                        response = await geminiChat.chatWithImages(userMessage, imageAttachments, conversationId);
+
+                        const imageInfo = imageAttachments.length === 1
+                            ? `📸 *Analyzing 1 image from the recent messages*\n\n`
+                            : `📸 *Analyzing ${imageAttachments.length} images from the recent messages*\n\n`;
+                        response = imageInfo + response;
+                    } else {
+                        response = await geminiChat.chat(userMessage, conversationId);
+                    }
 
                     if (response.length > 2000) {
                         const chunks = response.match(/.{1,1900}/g) || [response]; for (const chunk of chunks) {
@@ -857,15 +886,60 @@ try {
                 }
             }
 
-            if (!isInDevelopment && message.channel.type === ChannelType.DM && !message.author.bot) {
+            if (message.content.startsWith("!analyze_images")) {
+                const args = message.content.split(" ");
+                args.shift();
+
+                const userMessage = args.length > 0 ? args.join(" ") : "Please analyze these images for Call of Dragons strategy insights.";
+                const conversationId = `channel_${message.channel.id}`;
+
                 try {
-                    const conversationId = `dm_${message.author.id}`;
-                    const response = await geminiChat.chat(message.content, conversationId);
-                    message.author.send(response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
-                } catch (chatError) {
-                    console.log("Error getting response from Gemini:", chatError); message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
+                    await message.channel.sendTyping();
+
+                    const recentMessages = await message.channel.messages.fetch({ limit: 10 });
+                    const imageAttachments = [];
+
+                    for (const [_, msg] of recentMessages) {
+                        if (msg.attachments.size > 0) {
+                            for (const attachment of msg.attachments.values()) {
+                                if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                                    imageAttachments.push({
+                                        url: attachment.url,
+                                        name: attachment.name,
+                                        author: msg.author.username,
+                                        timestamp: msg.createdAt
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    if (imageAttachments.length === 0) {
+                        await message.channel.send("❌ No images found in the last 10 messages. Please upload an image and try again.");
+                        return;
+                    }
+
+                    const response = await geminiChat.chatWithImages(userMessage, imageAttachments, conversationId);
+
+                    const imageInfo = imageAttachments.length === 1
+                        ? `🔍 **Analyzing 1 image**\n\n`
+                        : `🔍 **Analyzing ${imageAttachments.length} images**\n\n`;
+                    const finalResponse = imageInfo + response;
+
+                    if (finalResponse.length > 2000) {
+                        const chunks = finalResponse.match(/.{1,1900}/g) || [finalResponse];
+                        for (const chunk of chunks) {
+                            await message.channel.send(chunk);
+                        }
+                    } else {
+                        await message.channel.send(finalResponse);
+                    }
+                } catch (error) {
+                    console.error("Error in !analyze_images command:", error);
+                    await message.channel.send("Sorry, an error occurred while analyzing the images. Please try again.");
                 }
             }
+
         } catch (globalError) {
             console.error('Global error in message handler:', globalError);
 
@@ -1000,7 +1074,7 @@ try {
 
     process.on('SIGINT', gracefulShutdown);
     process.on('SIGTERM', gracefulShutdown);
-    process.on('SIGUSR2', gracefulShutdown); 
+    process.on('SIGUSR2', gracefulShutdown);
 
     process.on('uncaughtException', (error) => {
         console.error('Uncaught Exception:', error);

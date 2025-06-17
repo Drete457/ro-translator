@@ -1,6 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
 
 class GeminiChat {
     constructor(apiKey) {
@@ -62,7 +63,6 @@ class GeminiChat {
         }
     }
 
-    // Start automatic saving interval
     startAutoSave() {
         setInterval(() => {
             this.autoSaveConversations();
@@ -88,7 +88,6 @@ class GeminiChat {
         this.conversations.set(conversationId, history);
         this.cleanupOldConversations();
         
-        // Auto-save conversations periodically
         this.autoSaveConversations();
     }
 
@@ -238,6 +237,76 @@ class GeminiChat {
         
         const match = conversationId.match(/(\d+)$/);
         return match ? parseInt(match[1]) : Date.now();
+    }
+
+    async chatWithImages(message, imageAttachments, conversationId = 'default') {
+        if (!this.isActive) {
+            return "Sorry, Leroy Jenkins is not available right now.";
+        }
+
+        try {
+            const history = this.getConversationHistory(conversationId);
+            
+            const imageContext = imageAttachments.map((img, index) => 
+                `Image ${index + 1}: ${img.name} (uploaded by ${img.author})`
+            ).join('\n');
+            
+            const enhancedMessage = `${message}\n\n[Context: I found ${imageAttachments.length} image(s) in recent messages:\n${imageContext}]\n\nPlease analyze the provided image(s) and respond based on what you see, focusing on Call of Dragons game strategy, map analysis, troop positioning, or any clan-related insights.`;
+
+            const imageParts = await Promise.all(
+                imageAttachments.map(async (img) => {
+                    try {
+                        const response = await fetch(img.url);
+                        const buffer = await response.buffer();
+                        return {
+                            inlineData: {
+                                data: buffer.toString('base64'),
+                                mimeType: response.headers.get('content-type') || 'image/png'
+                            }
+                        };
+                    } catch (error) {
+                        console.error(`Error processing image ${img.name}:`, error);
+                        return null;
+                    }
+                })
+            );
+
+            const validImageParts = imageParts.filter(part => part !== null);
+
+            if (validImageParts.length === 0) {
+                return "Sorry, I couldn't process the images. Please try uploading them again.";
+            }
+
+            const visionModel = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+            
+            const chatHistory = history.length === 0 ? 
+                [{ role: "user", parts: [{ text: this.systemPrompt }] },
+                 { role: "model", parts: [{ text: "Hello! I'm Leroy Jenkins, your specialized assistant for the ICE clan in Call of Dragons. I can analyze images, maps, and help with strategy. How can I help you today?" }] },
+                 ...history] : 
+                history;
+
+            const chat = visionModel.startChat({
+                history: chatHistory,
+                generationConfig: {
+                    maxOutputTokens: 1000,
+                    temperature: 0.7,
+                },
+            });
+
+            const result = await chat.sendMessage([
+                { text: enhancedMessage },
+                ...validImageParts
+            ]);
+            
+            const response = result.response.text();
+            
+            this.updateConversationHistory(conversationId, message, response);
+            
+            return response;
+        } catch (error) {
+            console.error("Error in Gemini chat with images:", error);
+            return "Sorry, an error occurred while analyzing the images. Please try again.";
+        }
     }
 }
 
