@@ -105,7 +105,7 @@ try {
 
             if (message.channel.id === channelDataTest || message.channel.id === channelData) {
                 if (message.content === "!commands") {
-                    const commands = "Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`"
+                    let commands = "Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`"
 
                     if (message.author.id === discordOwnerId) {
                         commands += "\n\n**Admin Commands:** `!conversations_stats`, `!save_conversations`";
