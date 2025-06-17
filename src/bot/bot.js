@@ -346,7 +346,7 @@ try {
             args.shift();
 
             if (args.length < 4) {
-                await message.channel.send("Usage: `!game_event <type> <date> <time> <duration>`\nTypes: war, rally, kvk, training, meeting\nExample: `!game_event war 15/06/2025 20:00 2h`");
+                await message.channel.send("Usage: `!game_event type date time duration`\nTypes: war, rally, kvk, training, meeting\nExample: `!game_event war 15/06/2025 20:00 2h`");
                 return;
             }
 
@@ -369,7 +369,11 @@ try {
                 );
 
                 if (result.success) {
-                    await message.channel.send(`✅ **${eventType.toUpperCase()} event created successfully!**\n🗓️ **Date:** ${result.eventDetails.date}\n⏰ **Time:** ${result.eventDetails.time}\n⏱️ **Duration:** ${result.eventDetails.duration}\n🔗 **Link:** ${result.eventDetails.link}`);
+                    if (result.eventDetails) {
+                        await message.channel.send(`✅ **${eventType.toUpperCase()} event created successfully!**\n🗓️ **Date:** ${result.eventDetails.date}\n⏰ **Time:** ${result.eventDetails.time}\n⏱️ **Duration:** ${result.eventDetails.duration}\n`);
+                    } else {
+                        await message.channel.send(`❌ **Error creating event:** ${result.error}`);
+                    }
                 } else {
                     await message.channel.send(`❌ **Error creating event:** ${result.error}`);
                 }
@@ -389,58 +393,60 @@ try {
             args.shift();
 
             if (args.length < 5) {
-                await message.channel.send("Usage: `!calendar_event <title> <date> <time> <duration> <description>`\nExample: `!calendar_event \"Clan Meeting\" 15/06/2025 19:00 1h \"Weekly strategy discussion\"`");
+                await message.channel.send("Usage: `!calendar_event \"title\" date time duration \"description\"`\nExample: `!calendar_event \"Clan Meeting\" 15/06/2025 19:00 1h \"Weekly strategy discussion\"`");
                 return;
             }
 
-            const fullArgs = message.content.substring(message.content.indexOf(' ') + 1);
+            const command = message.content;
+            const regex = /"([^"]+)"|(\S+)/g;
             const parsedArgs = [];
-            let current = '';
-            let inQuotes = false;
+            let match;
 
-            for (let i = 0; i < fullArgs.length; i++) {
-                const char = fullArgs[i];
-                if (char === '"' && (i === 0 || fullArgs[i - 1] === ' ')) {
-                    inQuotes = !inQuotes;
-                } else if (char === ' ' && !inQuotes) {
-                    if (current.trim()) {
-                        parsedArgs.push(current.trim());
-                        current = '';
-                    }
-                } else {
-                    current += char;
-                }
+            let firstSpace = command.indexOf(' ');
+            if (firstSpace === -1) {
+                await message.channel.send("❌ Missing required parameters. Usage: `!calendar_event \"title\" date time duration \"description\"`");
+                return;
             }
-            if (current.trim()) {
-                parsedArgs.push(current.trim());
+
+            const argsString = command.substring(firstSpace + 1);
+            while ((match = regex.exec(argsString)) !== null) {
+                parsedArgs.push(match[1] || match[2]);
             }
 
             if (parsedArgs.length < 5) {
-                await message.channel.send("❌ Missing required parameters. Usage: `!calendar_event <title> <date> <time> <duration> <description>`");
+                await message.channel.send(`❌ Missing required parameters. Found ${parsedArgs.length}/5 parameters.\nUsage: \`!calendar_event "title" date time duration "description"\`\nExample: \`!calendar_event "Clan Meeting" 15/06/2025 19:00 1h "Weekly strategy discussion"\``);
                 return;
             }
 
             const [title, dateStr, timeStr, durationStr, ...descriptionParts] = parsedArgs;
-            const description = descriptionParts.join(' ').replace(/^"|"$/g, '');
+            const description = descriptionParts.join(' ');
 
             try {
-                await message.channel.sendTyping();
-
-                const result = await calendarHelper.createEvent(
-                    title.replace(/^"|"$/g, ''),
+                await message.channel.sendTyping(); 
+                const result = await calendarHelper.createGameEvent(
+                    'custom',
                     dateStr,
                     timeStr,
                     durationStr,
-                    description
+                    `${title}\n\n${description}`
                 );
 
                 if (result.success) {
-                    await message.channel.send(`✅ **Event "${title}" created successfully!**\n🗓️ **Date:** ${result.eventDetails.date}\n⏰ **Time:** ${result.eventDetails.time}\n⏱️ **Duration:** ${result.eventDetails.duration}\n📝 **Description:** ${result.eventDetails.description}\n🔗 **Link:** ${result.eventDetails.link}`);
+                    if (result.eventDetails) {
+                        const successMessage = `✅ **Event "${title}" created successfully!**\n` +
+                            `🗓️ **Date:** ${result.eventDetails.date}\n` +
+                            `⏰ **Time:** ${result.eventDetails.time}\n` +
+                            `⏱️ **Duration:** ${result.eventDetails.duration}\n` +
+                            `📝 **Description:** ${description}\n`;
+                        await message.channel.send(successMessage);
+                    } else {
+                        await message.channel.send(`❌ **Error creating event:** ${result.error}`);
+                    }
                 } else {
                     await message.channel.send(`❌ **Error creating event:** ${result.error}`);
                 }
             } catch (error) {
-                console.error("Error in !calendar_event command:", error);
+
                 await message.channel.send("❌ An error occurred while creating the calendar event. Please try again.");
             }
         }

@@ -22,10 +22,10 @@ class GoogleCalendarHelper {
      * @param {Array} attendees - Array of email addresses (optional)
      * @returns {Promise<Object>} Created event object
      */
-    async createEvent(title, startDate, endDate, description = '', location = '', attendees = []) {
+    async createEvent(summary, startDate, endDate, description = '', location = '', attendees = []) {
         try {
             const event = {
-                summary: title,
+                summary: summary,
                 description: description,
                 location: location,
                 start: {
@@ -52,11 +52,36 @@ class GoogleCalendarHelper {
                 sendUpdates: 'all'
             });
 
+            const formatDate = (date) => {
+                return date.toLocaleDateString('pt-PT', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            };
+
+            const formatTime = (date) => {
+                return date.toLocaleTimeString('pt-PT', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+
+            const duration = Math.round((endDate - startDate) / (1000 * 60 * 60) * 100) / 100; 
+
             return {
                 success: true,
                 event: response.data,
                 eventId: response.data.id,
-                htmlLink: response.data.htmlLink
+                htmlLink: response.data.htmlLink,
+                eventDetails: {
+                    date: formatDate(startDate),
+                    time: formatTime(startDate),
+                    duration: duration >= 1 ? 
+                        `${Math.floor(duration)}h${duration % 1 > 0 ? Math.round((duration % 1) * 60) + 'm' : ''}` : 
+                        `${Math.round(duration * 60)}m`,
+                    link: response.data.htmlLink || 'N/A'
+                }
             };
         } catch (error) {
             console.error('Error creating calendar event:', error);
@@ -116,15 +141,51 @@ class GoogleCalendarHelper {
     }
 
     /**
+     * Parse duration string to hours
+     * @param {string} durationStr - Duration string (e.g., "2h", "1h30m", "45m")
+     * @returns {number} Duration in hours
+     */
+    parseDuration(durationStr) {
+        if (typeof durationStr === 'number') {
+            return durationStr;
+        }
+        
+        const str = durationStr.toLowerCase().trim();
+        let totalHours = 0;
+        
+        // Match hours (e.g., "2h", "1h")
+        const hoursMatch = str.match(/(\d+)h/);
+        if (hoursMatch) {
+            totalHours += parseInt(hoursMatch[1]);
+        }
+        
+        // Match minutes (e.g., "30m", "45m")
+        const minutesMatch = str.match(/(\d+)m/);
+        if (minutesMatch) {
+            totalHours += parseInt(minutesMatch[1]) / 60;
+        }
+        
+        // If no match found, try to parse as plain number
+        if (totalHours === 0) {
+            const numMatch = str.match(/(\d+)/);
+            if (numMatch) {
+                totalHours = parseInt(numMatch[1]);
+            }
+        }
+        
+        return totalHours || 1; // Default to 1 hour if parsing fails
+    }
+
+    /**
      * Quick event creation for gaming events
      * @param {string} eventType - Type of event (war, rally, etc.)
      * @param {string} dateStr - Date string
      * @param {string} timeStr - Time string
-     * @param {number} durationHours - Event duration in hours
+     * @param {string|number} durationStr - Event duration (e.g., "2h", "1h30m")
      * @param {string} additionalInfo - Additional information
      * @returns {Promise<Object>} Created event object
      */
-    async createGameEvent(eventType, dateStr, timeStr, durationHours = 1, additionalInfo = '') {
+    async createGameEvent(eventType, dateStr, timeStr, durationStr = 1, additionalInfo = '') {
         const eventTypes = {
             'war': {
                 title: '⚔️ ICE Clan War',
@@ -145,6 +206,10 @@ class GoogleCalendarHelper {
             'meeting': {
                 title: '🗣️ Leadership Meeting',
                 description: 'ICE Clan leadership meeting.'
+            },
+            'custom': {
+                title: '📅 Custom Event',
+                description: 'Custom event for ICE Clan.'
             }
         };
 
@@ -153,13 +218,28 @@ class GoogleCalendarHelper {
             description: `ICE Clan ${eventType} event`
         };
 
+        // For custom events, use the additional info as the title if provided
+        let finalTitle = eventConfig.title;
+        let finalDescription = eventConfig.description;
+        
+        if (eventType.toLowerCase() === 'custom' && additionalInfo) {
+            const lines = additionalInfo.split('\n');
+            if (lines.length > 0 && lines[0].trim()) {
+                finalTitle = lines[0].trim();
+                finalDescription = lines.slice(1).join('\n').trim() || eventConfig.description;
+            }
+        }
+
         const startDate = this.parseDate(dateStr, timeStr);
+        const durationHours = this.parseDuration(durationStr);
         const endDate = new Date(startDate.getTime() + (durationHours * 60 * 60 * 1000));
 
-        const description = `${eventConfig.description}\n\n${additionalInfo}\n\n📅 Scheduled by Leroy Jenkins Bot\n🕐 Duration: ${durationHours} hour(s)`;
+        const description = eventType.toLowerCase() === 'custom' ? 
+            `${finalDescription}\n\n📅 Scheduled by Leroy Jenkins Bot\n⏱️ Duration: ${durationStr}` :
+            `${eventConfig.description}\n\n${additionalInfo}\n\n📅 Scheduled by Leroy Jenkins Bot\n⏱️ Duration: ${durationStr}`;
 
         return await this.createEvent(
-            eventConfig.title,
+            finalTitle,
             startDate,
             endDate,
             description
