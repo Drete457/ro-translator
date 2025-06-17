@@ -53,10 +53,9 @@ try {
         }
     } else {
         console.log("Google Calendar credentials not configured - calendar commands will be disabled");
-    }
-
-    client.on(Events.MessageCreate, async (message) => {
-        if (!isInDevelopment && message.author.bot) return;
+    }    client.on(Events.MessageCreate, async (message) => {
+        try {
+            if (!isInDevelopment && message.author.bot) return;
 
         if (message.channel.id === channelWithImage) {
             if (message.attachments.size > 0) {
@@ -86,11 +85,9 @@ try {
                     }
                 });
             }
-        }
-
-        if (message.channel.id === channelDataTest || message.channel.id === channelData) {
+        }        if (message.channel.id === channelDataTest || message.channel.id === channelData) {
             if (message.content === "!commands") {
-                await message.channel.send("Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`");
+                await safeSendMessage(message.channel, "Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`", { fallbackUser: message.author });
                 return;
             }
 
@@ -284,16 +281,14 @@ try {
                     await message.channel.send("Sorry, an error occurred while analyzing timezone data. Please try again.");
                 }
             }
-        }
-
-        if (message.content === "!commands") {
+        }        if (message.content === "!commands") {
             let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`";
 
             if (calendarHelper) {
                 commandsText += ", `!help_game_event`, `!help_calendar_event`";
             }
 
-            await message.channel.send(commandsText);
+            await safeSendMessage(message.channel, commandsText, { fallbackUser: message.author });
             return;
         }
 
@@ -334,11 +329,9 @@ try {
 
             await message.channel.send(helpMessage);
             return;
-        }
-
-        if (message.content.startsWith("!game_event")) {
+        }        if (message.content.startsWith("!game_event")) {
             if (!calendarHelper) {
-                await message.channel.send("❌ Google Calendar is not configured. Please contact an administrator.");
+                await safeSendMessage(message.channel, "❌ Google Calendar is not configured. Please contact an administrator.", { fallbackUser: message.author });
                 return;
             }
 
@@ -823,8 +816,18 @@ try {
                 const response = await geminiChat.chat(message.content, conversationId);
                 message.author.send(response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
             } catch (chatError) {
-                console.log("Error getting response from Gemini:", chatError);
-                message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
+                console.log("Error getting response from Gemini:", chatError);                message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
+            }
+        }
+        } catch (globalError) {
+            console.error('Global error in message handler:', globalError);
+            
+            try {
+                if (message && message.author && !message.author.bot) {
+                    await safeSendMessage(message.channel, "❌ Sorry, I encountered an error processing your command. Please try again later.", { fallbackUser: message.author });
+                }
+            } catch (notificationError) {
+                console.error('Failed to send error notification:', notificationError);
             }
         }
     });
@@ -885,6 +888,67 @@ try {
                 `${quote(messageToTranslate)}\n\nError: It is not possible to translate to the language for ${countryInformation.name}.\n\n`
             ).catch(dmError => console.log("Error sending translation error to user DM: ", user.id, dmError));
         }
+    });
+
+ 
+    const canBotSendMessages = (channel) => {
+        try {
+            if (!channel || !channel.guild) return true;
+            
+            const botMember = channel.guild.members.me;
+            if (!botMember) return false;
+            
+            const permissions = channel.permissionsFor(botMember);
+            return permissions && permissions.has(['SendMessages', 'ViewChannel']);
+        } catch (error) {
+            console.error('Error checking permissions:', error);
+            return false;
+        }
+    }   
+
+    const safeSendMessage = async (channel, content, options = {}) => {
+        try {
+            if (!canBotSendMessages(channel)) {
+                console.log(`Bot lacks permissions to send messages in channel: ${channel.id}`);
+                if (options.fallbackUser) {
+                    try {
+                        const fallbackContent = typeof content === 'string' ? content : 
+                            (content.content || 'Response message');
+                        await options.fallbackUser.send(`⚠️ I couldn't send a message in that channel due to permissions. Here's what I wanted to say:\n\n${fallbackContent}`);
+                    } catch (dmError) {
+                        console.error('Failed to send DM fallback:', dmError.message);
+                    }
+                }
+                return null;
+            }
+            
+            if (typeof content === 'string') {
+                return await channel.send(content);
+            } else {
+                return await channel.send(content);
+            }
+        } catch (error) {
+            console.error(`Error sending message to channel ${channel.id}:`, error.message);
+            
+            if (options.fallbackUser) {
+                try {
+                    const fallbackContent = typeof content === 'string' ? content : 
+                        (content.content || 'Response message');
+                    await options.fallbackUser.send(`⚠️ I couldn't send a message in that channel due to permissions. Here's what I wanted to say:\n\n${fallbackContent}`);
+                } catch (dmError) {
+                    console.error('Failed to send DM fallback:', dmError.message);
+                }
+            }
+            return null;
+        }
+    }
+
+    process.on('uncaughtException', (error) => {
+        console.error('Uncaught Exception:', error);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+        console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     });
 
     client.login(discordToken);
