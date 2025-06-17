@@ -10,7 +10,6 @@ import {
 import SelectedFaction from './components/select-faction';
 import { Faction } from './types';
 import Form from './components/form';
-//import MeritsForm from './components/merits-form';
 import { logo } from './assets';
 import { MeritsForm, TabPanel } from './components';
 

@@ -96,7 +96,7 @@ try {
                     const commands = "Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`"
 
                     if (message.author.id === discordOwnerId) {
-                        commands += ", `!conversations_stats`, `!save_conversations`";
+                        commands += "\n\n**Admin Commands:** `!conversations_stats`, `!save_conversations`";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
@@ -326,9 +326,7 @@ try {
                         await safeSendMessage(message.channel, "❌ Error saving conversations.", { fallbackUser: message.author });
                     }
                 }
-            }
-
-            if (message.content === "!commands") {
+            }            if (message.content === "!commands") {
                 let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`";
 
                 if (calendarHelper) {
@@ -1000,10 +998,9 @@ try {
         process.exit(0);
     };
 
-    // Handle various shutdown signals
     process.on('SIGINT', gracefulShutdown);
     process.on('SIGTERM', gracefulShutdown);
-    process.on('SIGUSR2', gracefulShutdown); // For nodemon restart
+    process.on('SIGUSR2', gracefulShutdown); 
 
     process.on('uncaughtException', (error) => {
         console.error('Uncaught Exception:', error);

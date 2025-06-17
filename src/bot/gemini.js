@@ -10,7 +10,7 @@ class GeminiChat {
         this.isActive = false;
         this.conversationsFile = path.join(__dirname, 'conversations.json');
         this.lastSaveTime = Date.now();
-        this.saveInterval = 30000; // Save every 30 seconds
+        this.saveInterval = 30000;
 
         this.systemPrompt = `You are Leroy Jenkins, a specialized assistant for leaders of the ICE clan in the Call of Dragons game. 
         Your function is to help leaders with strategies, attack coordination, resource management, and any clan-related matters.
@@ -41,7 +41,6 @@ class GeminiChat {
 
     async init() {
         try {
-            // Load existing conversations first
             this.loadConversations();
             
             const testChat = this.model.startChat({
@@ -168,30 +167,26 @@ class GeminiChat {
         return this.isActive;
    }
 
-    // Load conversations from file on startup
     loadConversations() {
         try {
             if (fs.existsSync(this.conversationsFile)) {
                 const data = fs.readFileSync(this.conversationsFile, 'utf8');
                 const conversationsData = JSON.parse(data);
                 
-                // Convert plain object back to Map
                 this.conversations = new Map(Object.entries(conversationsData.conversations || {}));
                 
                 console.log(`Loaded ${this.conversations.size} conversations from file`);
                 
-                // Clean up old conversations (older than 7 days)
                 this.cleanupOldStoredConversations();
             } else {
                 console.log('No existing conversations file found, starting fresh');
             }
         } catch (error) {
             console.error('Error loading conversations:', error);
-            this.conversations = new Map(); // Reset to empty if corrupted
+            this.conversations = new Map();
         }
     }
 
-    // Save conversations to file
     saveConversations() {
         try {
             const conversationsData = {
@@ -200,7 +195,6 @@ class GeminiChat {
                 version: "1.0"
             };
             
-            // Create backup of existing file
             if (fs.existsSync(this.conversationsFile)) {
                 const backupFile = this.conversationsFile + '.backup';
                 fs.copyFileSync(this.conversationsFile, backupFile);
@@ -214,7 +208,6 @@ class GeminiChat {
         }
     }
 
-    // Auto-save conversations periodically
     autoSaveConversations() {
         const now = Date.now();
         if (now - this.lastSaveTime >= this.saveInterval) {
@@ -222,13 +215,11 @@ class GeminiChat {
         }
     }
 
-    // Clean up conversations older than 7 days
     cleanupOldStoredConversations() {
         const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         let removedCount = 0;
         
         for (const [conversationId, history] of this.conversations.entries()) {
-            // Check if conversation has recent activity
             const lastMessageTime = this.getLastMessageTime(conversationId);
             if (lastMessageTime && lastMessageTime < oneWeekAgo) {
                 this.conversations.delete(conversationId);
@@ -241,12 +232,10 @@ class GeminiChat {
         }
     }
 
-    // Get last message time for a conversation
     getLastMessageTime(conversationId) {
         const history = this.conversations.get(conversationId);
         if (!history || history.length === 0) return null;
         
-        // Try to get timestamp from conversation ID or use current time as fallback
         const match = conversationId.match(/(\d+)$/);
         return match ? parseInt(match[1]) : Date.now();
     }
