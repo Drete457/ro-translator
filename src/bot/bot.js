@@ -91,6 +91,18 @@ try {
                 }
             }
 
+            if (!isInDevelopment && message.channel.type === ChannelType.DM && !message.author.bot) {
+                try {
+                    const conversationId = `dm_${message.author.id}`;
+                    const response = await geminiChat.chat(message.content, conversationId);
+                    message.author.send(response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
+                } catch (chatError) {
+                    console.log("Error getting response from Gemini:", chatError);
+                    message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
+                }
+                return;
+            }
+
             if (message.channel.id === channelDataTest || message.channel.id === channelData) {
                 if (message.content === "!commands") {
                     const commands = "Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`"
@@ -937,17 +949,6 @@ try {
                 } catch (error) {
                     console.error("Error in !analyze_images command:", error);
                     await message.channel.send("Sorry, an error occurred while analyzing the images. Please try again.");
-                }
-            }
-
-            if (!isInDevelopment && message.channel.type === ChannelType.DM && !message.author.bot) {
-                try {
-                    const conversationId = `dm_${message.author.id}`;
-                    const response = await geminiChat.chat(message.content, conversationId);
-                    message.author.send(response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
-                } catch (chatError) {
-                    console.log("Error getting response from Gemini:", chatError);
-                    message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
                 }
             }
 
