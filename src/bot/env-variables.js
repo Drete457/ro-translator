@@ -9,5 +9,19 @@ const ocrSpaceApiKey = process.env.ocr_space_api_key;
 const googleSheetId = process.env.google_sheet_id;
 const googleClientEmail = process.env.google_client_email;
 const googlePrivateKey = process.env.google_private_key.replace(/\\n/g, "\n");
+const googleCalendarId = process.env.google_calendar_id;
 
-module.exports = { discordToken, accessTokenAi, characterId, geminiApiKey, channelWithImage, channelDataTest, channelData, ocrSpaceApiKey, googleSheetId, googleClientEmail, googlePrivateKey };
+module.exports = { 
+    discordToken, 
+    accessTokenAi, 
+    characterId, 
+    geminiApiKey, 
+    channelWithImage, 
+    channelDataTest, 
+    channelData, 
+    ocrSpaceApiKey, 
+    googleSheetId, 
+    googleClientEmail, 
+    googlePrivateKey,
+    googleCalendarId 
+};

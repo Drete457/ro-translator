@@ -20,9 +20,10 @@ const activeCountdowns = new Map();
 
 try {
     const GeminiChat = require("./gemini");
+    const GoogleCalendarHelper = require("./helpers/google-calendar");
     const translate = require("google-translate-api-x");
     const fetch = require("node-fetch");
-    const { discordToken, channelWithImage, channelData, channelDataTest, geminiApiKey } = require("./env-variables");
+    const { discordToken, channelWithImage, channelData, channelDataTest, geminiApiKey, googleClientEmail, googlePrivateKey, googleCalendarId } = require("./env-variables");
     const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
     const { richMessage } = require('./discord-custom-messages');
     const countries = require("./countries");
@@ -39,10 +40,20 @@ try {
     ];
     const partials = [Partials.Message, Partials.Channel, Partials.Reaction];
 
-    const client = new Client({ intents, partials });
-
-    const geminiChat = new GeminiChat(geminiApiKey);
+    const client = new Client({ intents, partials }); const geminiChat = new GeminiChat(geminiApiKey);
     geminiChat.init();
+
+    let calendarHelper = null;
+    if (googleClientEmail && googlePrivateKey && googleCalendarId) {
+        try {
+            calendarHelper = new GoogleCalendarHelper(googleClientEmail, googlePrivateKey, googleCalendarId);
+            console.log("Google Calendar integration initialized successfully");
+        } catch (error) {
+            console.error("Error initializing Google Calendar:", error);
+        }
+    } else {
+        console.log("Google Calendar credentials not configured - calendar commands will be disabled");
+    }
 
     client.on(Events.MessageCreate, async (message) => {
         if (!isInDevelopment && message.author.bot) return;
@@ -273,10 +284,165 @@ try {
                     await message.channel.send("Sorry, an error occurred while analyzing timezone data. Please try again.");
                 }
             }
+        }
 
-        } if (message.content === "!commands") {
-            await message.channel.send("Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`");
+        if (message.content === "!commands") {
+            let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!resume`";
+
+            if (calendarHelper) {
+                commandsText += ", `!help_game_event`, `!help_calendar_event`";
+            }
+
+            await message.channel.send(commandsText);
             return;
+        }
+
+        if (message.content.startsWith("!help_game_event")) {
+            const helpMessage = `📅 **Game Events Command:**
+            \`!game_event type date time duration\`
+
+            **Types available:**
+            🏰 \`war\` - Clan war events
+            ⚔️ \`rally\` - Rally events  
+            👑 \`kvk\` - Kingdom vs Kingdom events
+            🎯 \`training\` - Training sessions
+            💬 \`meeting\` - Clan meetings
+                    
+            **Examples:**
+            !game_event war 15/06/2025 20:00 2h
+            !game_event rally 16/06/2025 19:30 1h30m
+            !game_event kvk 20/06/2025 21:00 3h
+            !game_event training 18/06/2025 18:00 1h
+            !game_event meeting 17/06/2025 20:00 45m
+            `;
+
+            await message.channel.send(helpMessage);
+            return;
+        }
+
+        if (message.content.startsWith("!help_calendar_event")) {
+            const helpMessage = `📝 **Custom Calendar Event:**
+            \`!calendar_event "title" date time duration "description>"\`
+
+            **Example:**
+            \`!calendar_event "Strategy Meeting" 15/06/2025 19:00 1h "Weekly clan strategy discussion"\`
+
+            💡 **Tips:**
+            • Use DD/MM/YYYY format for dates
+            • Duration: 1h, 30m, 1h30m, etc.
+            • Events are automatically added to the ICE Alliance calendar`;
+
+            await message.channel.send(helpMessage);
+            return;
+        }
+
+        if (message.content.startsWith("!game_event")) {
+            if (!calendarHelper) {
+                await message.channel.send("❌ Google Calendar is not configured. Please contact an administrator.");
+                return;
+            }
+
+            const args = message.content.split(" ");
+            args.shift();
+
+            if (args.length < 4) {
+                await message.channel.send("Usage: `!game_event <type> <date> <time> <duration>`\nTypes: war, rally, kvk, training, meeting\nExample: `!game_event war 15/06/2025 20:00 2h`");
+                return;
+            }
+
+            const [eventType, dateStr, timeStr, durationStr] = args;
+            const validTypes = ['war', 'rally', 'kvk', 'training', 'meeting'];
+
+            if (!validTypes.includes(eventType.toLowerCase())) {
+                await message.channel.send(`❌ Invalid event type. Valid types: ${validTypes.join(', ')}`);
+                return;
+            }
+
+            try {
+                await message.channel.sendTyping();
+
+                const result = await calendarHelper.createGameEvent(
+                    eventType.toLowerCase(),
+                    dateStr,
+                    timeStr,
+                    durationStr
+                );
+
+                if (result.success) {
+                    await message.channel.send(`✅ **${eventType.toUpperCase()} event created successfully!**\n🗓️ **Date:** ${result.eventDetails.date}\n⏰ **Time:** ${result.eventDetails.time}\n⏱️ **Duration:** ${result.eventDetails.duration}\n🔗 **Link:** ${result.eventDetails.link}`);
+                } else {
+                    await message.channel.send(`❌ **Error creating event:** ${result.error}`);
+                }
+            } catch (error) {
+                console.error("Error in !game_event command:", error);
+                await message.channel.send("❌ An error occurred while creating the calendar event. Please try again.");
+            }
+        }
+
+        if (message.content.startsWith("!calendar_event")) {
+            if (!calendarHelper) {
+                await message.channel.send("❌ Google Calendar is not configured. Please contact an administrator.");
+                return;
+            }
+
+            const args = message.content.split(" ");
+            args.shift();
+
+            if (args.length < 5) {
+                await message.channel.send("Usage: `!calendar_event <title> <date> <time> <duration> <description>`\nExample: `!calendar_event \"Clan Meeting\" 15/06/2025 19:00 1h \"Weekly strategy discussion\"`");
+                return;
+            }
+
+            const fullArgs = message.content.substring(message.content.indexOf(' ') + 1);
+            const parsedArgs = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < fullArgs.length; i++) {
+                const char = fullArgs[i];
+                if (char === '"' && (i === 0 || fullArgs[i - 1] === ' ')) {
+                    inQuotes = !inQuotes;
+                } else if (char === ' ' && !inQuotes) {
+                    if (current.trim()) {
+                        parsedArgs.push(current.trim());
+                        current = '';
+                    }
+                } else {
+                    current += char;
+                }
+            }
+            if (current.trim()) {
+                parsedArgs.push(current.trim());
+            }
+
+            if (parsedArgs.length < 5) {
+                await message.channel.send("❌ Missing required parameters. Usage: `!calendar_event <title> <date> <time> <duration> <description>`");
+                return;
+            }
+
+            const [title, dateStr, timeStr, durationStr, ...descriptionParts] = parsedArgs;
+            const description = descriptionParts.join(' ').replace(/^"|"$/g, '');
+
+            try {
+                await message.channel.sendTyping();
+
+                const result = await calendarHelper.createEvent(
+                    title.replace(/^"|"$/g, ''),
+                    dateStr,
+                    timeStr,
+                    durationStr,
+                    description
+                );
+
+                if (result.success) {
+                    await message.channel.send(`✅ **Event "${title}" created successfully!**\n🗓️ **Date:** ${result.eventDetails.date}\n⏰ **Time:** ${result.eventDetails.time}\n⏱️ **Duration:** ${result.eventDetails.duration}\n📝 **Description:** ${result.eventDetails.description}\n🔗 **Link:** ${result.eventDetails.link}`);
+                } else {
+                    await message.channel.send(`❌ **Error creating event:** ${result.error}`);
+                }
+            } catch (error) {
+                console.error("Error in !calendar_event command:", error);
+                await message.channel.send("❌ An error occurred while creating the calendar event. Please try again.");
+            }
         }
 
         if (message.content.startsWith("!happy_birthday")) {
