@@ -71,6 +71,11 @@ const Form: FC<FormProps> = ({
       isValid = false;
     }
 
+    if (!formData.mana) {
+      newErrors.mana = "Mana is required";
+      isValid = false;
+    }
+
     const troopTypes = [cFL(UnitType.Infantry), cFL(UnitType.Mages), cFL(UnitType.Archers), cFL(UnitType.Cavalry), cFL(UnitType.Flying)];
     troopTypes.forEach(type => {
       const hasTroops = [1, 2, 3, 4, 5].some(tier => {
