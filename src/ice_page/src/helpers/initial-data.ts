@@ -10,6 +10,7 @@ const FormInitialData: PlayerFormData = Object.freeze({
   unitsHealed: undefined,
   timesAllianceHelped: undefined,
   timeZone: '',
+  mana: undefined,
   t1InfantryCount: undefined,
   t2InfantryCount: undefined,
   t3InfantryCount: undefined,
