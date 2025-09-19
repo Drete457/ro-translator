@@ -25,7 +25,7 @@ const Form: FC<FormProps> = ({
   const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
-console.log(submitted)
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     value.replace(".", "");
@@ -382,8 +382,40 @@ console.log(submitted)
                       '&:hover fieldset': { borderColor: 'lightblue' },
                     }
                   }}
-                  aria-readonly
-                  
+                  aria-readonly    
+                />
+              </Stack>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
+          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+            Resources Owned
+          </Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
+              <Stack spacing={1} alignItems="center">
+                <TextField
+                  required
+                  fullWidth
+                  id="mana"
+                  label="Mana"
+                  name="mana"
+                  type="number"
+                  value={formData.mana}
+                  onChange={handleChange}
+                  error={submitted && !!errors.mana}
+                  helperText={submitted && errors.mana}
+                  sx={{
+                    '& .MuiInputBase-input': { color: 'white' },
+                    '& .MuiInputLabel-root': { color: 'lightblue' },
+                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
+                      '&:hover fieldset': { borderColor: 'lightblue' },
+                    }
+                  }}
                 />
               </Stack>
             </Grid>

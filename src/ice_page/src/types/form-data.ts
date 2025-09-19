@@ -8,6 +8,7 @@ interface PlayerFormData {
   unitsHealed: number | undefined;
   timesAllianceHelped: number | undefined;
   timeZone: string;
+  mana: number | undefined;
   t1InfantryCount: number | undefined;
   t2InfantryCount: number | undefined;
   t3InfantryCount: number | undefined;
