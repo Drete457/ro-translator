@@ -105,17 +105,84 @@ try {
 
             if (message.channel.id === channelDataTest || message.channel.id === channelData) {
                 if (message.content === "!commands") {
-                    let commands = "Commands available: `!players-info yyyy-mm-dd`, `!players-info-merits yyyy-mm-dd`, `!player_time_zone`"
+                    let commands = "**Data Commands:**\n";
+                    commands += "`!players-info [yyyy-mm-dd]` - Latest entry per user (default)\n";
+                    commands += "`!players-info-latest [yyyy-mm-dd]` - Latest entry per user (explicit)\n";
+                    commands += "`!players-info-all [yyyy-mm-dd]` - All entries (bulk operations)\n";
+                    commands += "`!players-info-merits [yyyy-mm-dd]` - Player merits data\n";
+                    commands += "`!player_time_zone` - Timezone analysis\n";
 
                     if (message.author.id === discordOwnerId) {
-                        commands += "\n\n**Admin Commands:** `!conversations_stats`, `!save_conversations`";
+                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
                     return;
                 }
 
-                if (message.content.startsWith("!players-info")) {
+                if (message.content.startsWith("!players-info-latest")) {
+                    // Command to get the latest entry per user
+                    const args = message.content.split(" ");
+                    args.shift();
+
+                    let dateFilter;
+                    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+                    if (args.length > 0 && dateRegex.test(args[0])) {
+                        const dateArg = args[0];
+                        const parsedDate = new Date(dateArg + "T00:00:00.000Z");
+                        if (!isNaN(parsedDate.getTime())) {
+                            dateFilter = parsedDate;
+                        } else {
+                            await message.channel.send("Invalid date format. Please use YYYY-MM-DD. Fetching all latest data.");
+                        }
+                    }
+
+                    const db = await getFirebase();
+                    let playersQueryRef;
+
+                    if (dateFilter) {
+                        playersQueryRef = query(collection(db, "playersInfo"), where("timestamp", ">=", dateFilter.toISOString()), orderBy("timestamp", "desc"));
+                    } else {
+                        playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
+                    }
+
+                    const querySnapshot = await getDocs(playersQueryRef);
+                    const allData = querySnapshot.docs.map(doc => doc.data());
+
+                    if (allData.length === 0) {
+                        await message.channel.send(dateFilter ? `No player information found from ${args[0]} onwards.` : "No player information found.");
+                        return;
+                    }
+
+                    // Filter to get only the latest entry per userId
+                    const latestPerUser = new Map();
+                    allData.forEach(entry => {
+                        if (!latestPerUser.has(entry.userId) || 
+                            new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
+                            latestPerUser.set(entry.userId, entry);
+                        }
+                    });
+
+                    const latestData = Array.from(latestPerUser.values());
+
+                    const fileName = `players_info_latest_${dateFilter ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
+                    const filePath = await createExcelFile(playerInfo, latestData, fileName, `Players Latest Info${dateFilter ? ' from ' + args[0] : ''} (${latestData.length} unique users)`);
+
+                    if (filePath) {
+                        const attachment = new AttachmentBuilder(filePath, { name: fileName });
+                        await message.channel.send({
+                            content: `Here is the latest players information per user${dateFilter ? ' from ' + args[0] : ''} as Excel file:\n📊 **${latestData.length}** unique users (from ${allData.length} total entries)`,
+                            files: [attachment]
+                        });
+                        fs.unlinkSync(filePath);
+                    } else {
+                        await message.channel.send('Error generating Excel file. Please try again later.');
+                    }
+                }
+
+                if (message.content.startsWith("!players-info-all")) {
+                    // Command to get ALL entries (no filtering by user)
                     const args = message.content.split(" ");
                     args.shift();
 
@@ -149,13 +216,77 @@ try {
                         return;
                     }
 
+                    // Get unique user count for display
+                    const uniqueUsers = new Set(data.map(entry => entry.userId)).size;
+
+                    const fileName = `players_info_all_${dateFilter ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
+                    const filePath = await createExcelFile(playerInfo, data, fileName, `All Players Info${dateFilter ? ' from ' + args[0] : ''} (${data.length} entries)`);
+
+                    if (filePath) {
+                        const attachment = new AttachmentBuilder(filePath, { name: fileName });
+                        await message.channel.send({
+                            content: `Here is ALL players information${dateFilter ? ' from ' + args[0] : ''} as Excel file:\n📊 **${data.length}** total entries from **${uniqueUsers}** unique users`,
+                            files: [attachment]
+                        });
+                        fs.unlinkSync(filePath);
+                    } else {
+                        await message.channel.send('Error generating Excel file. Please try again later.');
+                    }
+                }
+
+                // Keep the original command for backward compatibility (now defaults to latest per user)
+                if (message.content.startsWith("!players-info") && !message.content.startsWith("!players-info-")) {
+                    const args = message.content.split(" ");
+                    args.shift();
+
+                    let dateFilter;
+                    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+                    if (args.length > 0 && dateRegex.test(args[0])) {
+                        const dateArg = args[0];
+                        const parsedDate = new Date(dateArg + "T00:00:00.000Z");
+                        if (!isNaN(parsedDate.getTime())) {
+                            dateFilter = parsedDate;
+                        } else {
+                            await message.channel.send("Invalid date format. Please use YYYY-MM-DD. Fetching all data.");
+                        }
+                    }
+
+                    const db = await getFirebase();
+                    let playersQueryRef;
+
+                    if (dateFilter) {
+                        playersQueryRef = query(collection(db, "playersInfo"), where("timestamp", ">=", dateFilter.toISOString()), orderBy("timestamp", "desc"));
+                    } else {
+                        playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
+                    }
+
+                    const querySnapshot = await getDocs(playersQueryRef);
+                    const allData = querySnapshot.docs.map(doc => doc.data());
+
+                    if (allData.length === 0) {
+                        await message.channel.send(dateFilter ? `No player information found from ${args[0]} onwards.` : "No player information found.");
+                        return;
+                    }
+
+                    // Default behavior: show latest per user (same as !players-info-latest)
+                    const latestPerUser = new Map();
+                    allData.forEach(entry => {
+                        if (!latestPerUser.has(entry.userId) || 
+                            new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
+                            latestPerUser.set(entry.userId, entry);
+                        }
+                    });
+
+                    const data = Array.from(latestPerUser.values());
+
                     const fileName = `players_info_${dateFilter ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
                     const filePath = await createExcelFile(playerInfo, data, fileName, `Players Info${dateFilter ? ' from ' + args[0] : ''}`);
 
                     if (filePath) {
                         const attachment = new AttachmentBuilder(filePath, { name: fileName });
                         await message.channel.send({
-                            content: `Here is the players information${dateFilter ? ' from ' + args[0] : ''} as Excel file:`,
+                            content: `Here is the players information${dateFilter ? ' from ' + args[0] : ''} as Excel file:\n💡 *Showing latest entry per user. Use \`!players-info-all\` for all entries.*`,
                             files: [attachment]
                         });
                         fs.unlinkSync(filePath);
