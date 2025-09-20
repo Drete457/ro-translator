@@ -29,7 +29,7 @@ const App = () => {
     try {
       const db = await getFirebase();
       const playersInfoCollection = collection(db, 'playersInfo');
-      
+
       // Try searching with userId as number first
       let q = query(
         playersInfoCollection,
@@ -37,9 +37,9 @@ const App = () => {
         orderBy('timestamp', 'desc'),
         limit(1)
       );
-      
+
       let querySnapshot = await getDocs(q);
-      
+
       // If no results found with number, try with string
       if (querySnapshot.empty) {
         q = query(
@@ -48,13 +48,13 @@ const App = () => {
           orderBy('timestamp', 'desc'),
           limit(1)
         );
-        
+
         querySnapshot = await getDocs(q);
       }
-      
-      if (querySnapshot.empty) 
+
+      if (querySnapshot.empty)
         return null;
-      
+
       const doc = querySnapshot.docs[0];
       return doc.data() as PlayerFormData;
     } catch (error) {
@@ -66,10 +66,10 @@ const App = () => {
   const handleSearch = async (userId: string) => {
     setLoading(true);
     setError('');
-    
+
     try {
       const userData = await fetchUserDataById(userId);
-      
+
       if (userData) {
         setExistingUserData(userData);
         setSelectedFaction(userData.faction as Faction);
@@ -91,10 +91,17 @@ const App = () => {
   };
 
   const handleFactionSelect = (faction: Faction | null) => {
-    setSelectedFaction(faction);
-    if (faction) {
-      setEntryStep('forms');
+    console.log('Selected faction:', faction);
+    if (!faction) {
+      console.log('No faction selected, returning to faction selection.');
+      setEntryStep('faction-selection');
+      return;
     }
+
+    setSelectedFaction(faction);
+
+    if (faction)
+      setEntryStep('forms');
   };
 
   const handleTabChange = (event: SyntheticEvent, newValue: number) => {
@@ -185,15 +192,15 @@ const App = () => {
               </Tabs>
 
               <TabPanel value={tabValue} index={0}>
-                <Form 
-                  selectedFaction={selectedFaction} 
-                  setSelectedFaction={setSelectedFaction}
+                <Form
+                  selectedFaction={selectedFaction}
+                  setSelectedFaction={handleFactionSelect}
                   existingUserData={existingUserData}
                   onBackToStart={handleBackToStart}
                 />
               </TabPanel>
               <TabPanel value={tabValue} index={1}>
-                <MeritsForm 
+                <MeritsForm
                   selectedFaction={selectedFaction}
                   existingUserData={existingUserData}
                   onBackToStart={handleBackToStart}
