@@ -383,17 +383,28 @@ try {
                         const db = await getFirebase();
                         const playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
                         const querySnapshot = await getDocs(playersQueryRef);
-                        const playersData = querySnapshot.docs.map(doc => doc.data());
+                        const allPlayersData = querySnapshot.docs.map(doc => doc.data());
 
-                        if (playersData.length === 0) {
+                        if (allPlayersData.length === 0) {
                             await message.channel.send("No player data found in the database.");
                             return;
                         }
+
+                        // Filter to get only the latest entry per userId
+                        const latestPerUser = new Map();
+                        allPlayersData.forEach(entry => {
+                            if (!latestPerUser.has(entry.userId) || 
+                                new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
+                                latestPerUser.set(entry.userId, entry);
+                            }
+                        });
+
+                        const playersData = Array.from(latestPerUser.values());
                         const analysis = analyzePlayerTimezones(playersData);
 
                         let responseMessage = `🌍 **ICE Clan Timezone Analysis** 🌍\n\n`;
                         responseMessage += `📊 **Data Overview:**\n`;
-                        responseMessage += `• Total players: ${analysis.totalPlayers}\n`;
+                        responseMessage += `• Unique players analyzed: ${analysis.totalPlayers} (from ${allPlayersData.length} total entries)\n`;
                         responseMessage += `• Players with timezone data: ${analysis.playersWithTimezone}\n\n`;
 
                         if (analysis.playersWithTimezone === 0) {
