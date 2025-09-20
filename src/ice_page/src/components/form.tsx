@@ -16,13 +16,23 @@ import { addDoc, collection } from "firebase/firestore";
 interface FormProps {
   selectedFaction: Faction;
   setSelectedFaction: (faction: Faction | null) => void;
+  existingUserData?: PlayerFormData | null;
+  onBackToStart?: () => void;
 }
 
 const Form: FC<FormProps> = ({
   selectedFaction,
-  setSelectedFaction
+  setSelectedFaction,
+  existingUserData,
+  onBackToStart
 }) => {
-  const [formData, setFormData] = useState<PlayerFormData>({ ...FormInitialData, faction: selectedFaction ?? "" });
+  const [formData, setFormData] = useState<PlayerFormData>(() => {
+    // If we have existing user data, use it; otherwise use initial data
+    if (existingUserData) {
+      return { ...existingUserData, faction: selectedFaction ?? "" };
+    }
+    return { ...FormInitialData, faction: selectedFaction ?? "" };
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
 
@@ -107,6 +117,7 @@ const Form: FC<FormProps> = ({
 
     const docRef = await addDoc(collection(db, "playersInfo"), {
       ...newData,
+      createdAt: new Date(),
       timestamp: new Date().toISOString()
     });
 
@@ -125,7 +136,7 @@ const Form: FC<FormProps> = ({
 
       if (success) {
         alert('Army data submitted successfully!');
-        setSelectedFaction(null);
+        onBackToStart?.();
         return;
       }
 
@@ -438,24 +449,45 @@ const Form: FC<FormProps> = ({
           <TierFields selectedFaction={selectedFaction} unitType={UnitType.Flying} fieldPrefix="FlyingCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
         </Paper>
 
-        <Grid item xs={12}>
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            color="primary"
-            size="large"
-            sx={{
-              mt: 4,
-              backgroundColor: '#1976d2',
-              '&:hover': {
-                backgroundColor: '#115293'
-              }
-            }}
-            disabled={submitted}
-          >
-            Submit Army Data
-          </Button>
+        <Grid container spacing={2} sx={{ mt: 4 }}>
+          {onBackToStart && (
+            <Grid item xs={12} sm={6}>
+              <Button
+                fullWidth
+                variant="outlined"
+                size="large"
+                onClick={onBackToStart}
+                sx={{
+                  color: 'lightblue',
+                  borderColor: 'lightblue',
+                  '&:hover': {
+                    borderColor: '#9fd8ff',
+                    backgroundColor: 'rgba(159, 216, 255, 0.1)'
+                  }
+                }}
+              >
+                Back to Start
+              </Button>
+            </Grid>
+          )}
+          <Grid item xs={12} sm={onBackToStart ? 6 : 12}>
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              color="primary"
+              size="large"
+              sx={{
+                backgroundColor: '#1976d2',
+                '&:hover': {
+                  backgroundColor: '#115293'
+                }
+              }}
+              disabled={submitted}
+            >
+              Submit Army Data
+            </Button>
+          </Grid>
         </Grid>
       </Box>
     </>

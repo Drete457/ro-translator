@@ -1,4 +1,4 @@
-import { ChangeEvent, Dispatch, FC, FormEvent, SetStateAction, useState } from 'react';
+import { ChangeEvent, FC, FormEvent, useState } from 'react';
 import {
   Typography,
   TextField,
@@ -8,18 +8,30 @@ import {
   Stack,
   Paper
 } from '@mui/material';
-import { MeritFormData } from '../types';
+import { MeritFormData, Faction, PlayerFormData } from '../types';
 import { MeritsInitialData } from '../helpers';
 import { addDoc, collection } from "firebase/firestore";
 
 interface MeritsFormProps {
-  setTabValue: Dispatch<SetStateAction<number>>;
+  selectedFaction: Faction;
+  existingUserData?: PlayerFormData | null;
+  onBackToStart?: () => void;
 }
 
 const MeritsForm: FC<MeritsFormProps> = ({
-  setTabValue
+  selectedFaction,
+  existingUserData,
+  onBackToStart
 }) => {
-  const [formData, setFormData] = useState<MeritFormData>(MeritsInitialData);
+  const [formData, setFormData] = useState<MeritFormData>(() => {
+    if (existingUserData) {
+      return { 
+        ...MeritsInitialData, 
+        userId: existingUserData.userId || 0 
+      };
+    }
+    return MeritsInitialData;
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
 
@@ -88,7 +100,7 @@ const MeritsForm: FC<MeritsFormProps> = ({
 
       if (success) {
         alert('Merits data submitted successfully');
-        setTabValue(0);
+        onBackToStart?.();
         return;
       }
 
@@ -104,8 +116,16 @@ const MeritsForm: FC<MeritsFormProps> = ({
   return (
     <>
       <Typography variant="h6" sx={{ color: 'lightblue', mb: 2, textAlign: 'center' }}>
-        Merits Form
+        Merits Form - {selectedFaction}
       </Typography>
+
+      {existingUserData && (
+        <Box sx={{ mb: 2, p: 2, backgroundColor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1 }}>
+          <Typography variant="body2" sx={{ color: '#4caf50', textAlign: 'center' }}>
+            ✓ User data found! User ID has been pre-filled from your existing data.
+          </Typography>
+        </Box>
+      )}
 
       <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3 }}>
         <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
@@ -165,24 +185,45 @@ const MeritsForm: FC<MeritsFormProps> = ({
           </Grid>
         </Paper>
 
-        <Grid item xs={12}>
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            color="primary"
-            size="large"
-            sx={{
-              mt: 4,
-              backgroundColor: '#1976d2',
-              '&:hover': {
-                backgroundColor: '#115293'
-              }
-            }}
-            disabled={submitted}
-          >
-            Submit Merits Data
-          </Button>
+        <Grid container spacing={2} sx={{ mt: 4 }}>
+          {onBackToStart && (
+            <Grid item xs={12} sm={6}>
+              <Button
+                fullWidth
+                variant="outlined"
+                size="large"
+                onClick={onBackToStart}
+                sx={{
+                  color: 'lightblue',
+                  borderColor: 'lightblue',
+                  '&:hover': {
+                    borderColor: '#9fd8ff',
+                    backgroundColor: 'rgba(159, 216, 255, 0.1)'
+                  }
+                }}
+              >
+                Back to Start
+              </Button>
+            </Grid>
+          )}
+          <Grid item xs={12} sm={onBackToStart ? 6 : 12}>
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              color="primary"
+              size="large"
+              sx={{
+                backgroundColor: '#1976d2',
+                '&:hover': {
+                  backgroundColor: '#115293'
+                }
+              }}
+              disabled={submitted}
+            >
+              Submit Merits Data
+            </Button>
+          </Grid>
         </Grid>
       </Box>
     </>
