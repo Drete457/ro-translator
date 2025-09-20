@@ -479,8 +479,15 @@ const Form: FC<FormProps> = ({
               size="large"
               sx={{
                 backgroundColor: '#1976d2',
+                color: 'white',
+                fontWeight: 'bold',
                 '&:hover': {
                   backgroundColor: '#115293'
+                },
+                '&:disabled': {
+                  backgroundColor: '#e2e8f0',
+                  color: '#64748b',
+                  fontWeight: 'bold'
                 }
               }}
               disabled={submitted}

@@ -84,13 +84,18 @@ const LandingScreen: FC<LandingScreenProps> = ({
               onClick={handleSearch}
               disabled={loading || !userId.trim()}
               sx={{
-                backgroundColor: 'lightblue',
-                color: '#132f4c',
+                backgroundColor: '#1976d2',
+                color: 'white',
                 fontWeight: 'bold',
+                minWidth: 120,
                 '&:hover': {
-                  backgroundColor: '#9fd8ff'
+                  backgroundColor: '#115293'
                 },
-                minWidth: 120
+                '&:disabled': {
+                  backgroundColor: '#e2e8f0',
+                  color: '#64748b',
+                  fontWeight: 'bold'
+                }
               }}
             >
               {loading ? <CircularProgress size={24} /> : 'Search'}
@@ -120,6 +125,10 @@ const LandingScreen: FC<LandingScreenProps> = ({
               '&:hover': {
                 borderColor: '#9fd8ff',
                 backgroundColor: 'rgba(159, 216, 255, 0.1)'
+              },
+              '&:disabled': {
+                color: '#94a3b8',
+                borderColor: '#cbd5e1'
               }
             }}
           >

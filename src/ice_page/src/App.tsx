@@ -52,13 +52,10 @@ const App = () => {
         querySnapshot = await getDocs(q);
       }
       
-      if (querySnapshot.empty) {
-        console.log('No user found with userId:', userId, 'in collection: playersInfo');
+      if (querySnapshot.empty) 
         return null;
-      }
       
       const doc = querySnapshot.docs[0];
-      console.log('Found user data:', doc.data());
       return doc.data() as PlayerFormData;
     } catch (error) {
       console.error('Error fetching user data:', error);
