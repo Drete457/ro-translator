@@ -6,7 +6,8 @@ const {
     Partials,
     ChannelType,
     quote,
-    AttachmentBuilder
+    AttachmentBuilder,
+    EmbedBuilder
 } = require("discord.js");
 const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
 const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
@@ -111,6 +112,7 @@ try {
                     commands += "`!players-info-all [yyyy-mm-dd]` - All entries (bulk operations)\n";
                     commands += "`!players-info-merits [yyyy-mm-dd]` - Player merits data\n";
                     commands += "`!player_time_zone` - Timezone analysis\n";
+                    commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
                     if (message.author.id === discordOwnerId) {
                         commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`";
@@ -445,6 +447,293 @@ try {
                     } catch (error) {
                         console.error("Error in !player_time_zone command:", error);
                         await message.channel.send("Sorry, an error occurred while analyzing timezone data. Please try again.");
+                    }
+                }
+
+                if (message.content === "!clan-summary") {
+                    try {
+                        await message.channel.sendTyping();
+
+                        const db = await getFirebase();
+                        const playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
+                        const querySnapshot = await getDocs(playersQueryRef);
+                        const allPlayersData = querySnapshot.docs.map(doc => doc.data());
+
+                        if (allPlayersData.length === 0) {
+                            await message.channel.send("No player data found in the database.");
+                            return;
+                        }
+
+                        // Filter to get only the latest entry per userId, ignoring 0/null values
+                        const latestPerUser = new Map();
+                        allPlayersData.forEach(entry => {
+                            if (!latestPerUser.has(entry.userId) || 
+                                new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
+                                latestPerUser.set(entry.userId, entry);
+                            }
+                        });
+
+                        const playersData = Array.from(latestPerUser.values());
+
+                        // Helper function to safely parse numbers and ignore 0/null
+                        const safeParseNumber = (value) => {
+                            const num = parseInt(value) || 0;
+                            return num > 0 ? num : 0;
+                        };
+
+                        // Calculate T5 soldiers summary
+                        const t5Summary = {
+                            infantry: 0,
+                            mages: 0,
+                            archers: 0,
+                            cavalry: 0,
+                            flying: 0
+                        };
+
+                        // Calculate all troop types
+                        const troopSummary = {
+                            t1: { infantry: 0, mages: 0, archers: 0, cavalry: 0, flying: 0 },
+                            t2: { infantry: 0, mages: 0, archers: 0, cavalry: 0, flying: 0 },
+                            t3: { infantry: 0, mages: 0, archers: 0, cavalry: 0, flying: 0 },
+                            t4: { infantry: 0, mages: 0, archers: 0, cavalry: 0, flying: 0 },
+                            t5: { infantry: 0, mages: 0, archers: 0, cavalry: 0, flying: 0 }
+                        };
+
+                        // Other statistics
+                        let totalPower = 0;
+                        let totalMana = 0;
+                        let activePlayers = 0;
+                        const factions = {};
+                        const timeZones = {};
+                        const playersWithT5 = [];
+
+                        playersData.forEach(player => {
+                            const power = safeParseNumber(player.power);
+                            if (power > 0) {
+                                totalPower += power;
+                                activePlayers++;
+                            }
+
+                            const mana = safeParseNumber(player.mana);
+                            if (mana > 0) totalMana += mana;
+
+                            // Count factions
+                            if (player.faction && player.faction !== '') {
+                                factions[player.faction] = (factions[player.faction] || 0) + 1;
+                            }
+
+                            // Count timezones
+                            if (player.timeZone && player.timeZone !== '') {
+                                timeZones[player.timeZone] = (timeZones[player.timeZone] || 0) + 1;
+                            }
+
+                            // Calculate troop counts for each tier
+                            ['t1', 't2', 't3', 't4', 't5'].forEach(tier => {
+                                ['Infantry', 'Mages', 'Archers', 'Cavalry', 'Flying'].forEach(type => {
+                                    const fieldName = `${tier}${type}Count`;
+                                    const count = safeParseNumber(player[fieldName]);
+                                    if (count > 0) {
+                                        const troopType = type.toLowerCase();
+                                        troopSummary[tier][troopType] += count;
+                                        
+                                        // Track T5 specifically
+                                        if (tier === 't5') {
+                                            t5Summary[troopType] += count;
+                                            if (!playersWithT5.find(p => p.userId === player.userId)) {
+                                                playersWithT5.push({
+                                                    userName: player.userName || 'Unknown',
+                                                    userId: player.userId,
+                                                    totalT5: count
+                                                });
+                                            } else {
+                                                const existingPlayer = playersWithT5.find(p => p.userId === player.userId);
+                                                existingPlayer.totalT5 += count;
+                                            }
+                                        }
+                                    }
+                                });
+                            });
+                        });
+
+                        // Calculate total T5
+                        const totalT5 = Object.values(t5Summary).reduce((sum, count) => sum + count, 0);
+
+                        // Sort timezones and factions by count
+                        const topTimezones = Object.entries(timeZones)
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 5);
+                        const topFactions = Object.entries(factions)
+                            .sort(([,a], [,b]) => b - a)
+                            .slice(0, 3);
+
+                        // Sort players with T5 by total T5 count
+                        playersWithT5.sort((a, b) => b.totalT5 - a.totalT5);
+
+                        // Create main summary embed
+                        const mainEmbed = new EmbedBuilder()
+                            .setTitle("🏰 ICE CLAN - Complete Summary")
+                            .setDescription(`**Comprehensive clan capabilities analysis**\n*Based on latest data per player*`)
+                            .addFields(
+                                {
+                                    name: "👥 Clan Overview",
+                                    value: `• **Active Players:** ${activePlayers}/${playersData.length}\n• **Total Power:** ${totalPower.toLocaleString()}\n• **Average Power:** ${Math.round(totalPower/activePlayers || 0).toLocaleString()}\n• **Total Mana:** ${totalMana.toLocaleString()}`,
+                                    inline: false
+                                },
+                                {
+                                    name: "⚔️ T5 Forces Overview",
+                                    value: `• **Total T5 Soldiers:** ${totalT5.toLocaleString()}\n• **Players with T5:** ${playersWithT5.length}\n• **Infantry:** ${t5Summary.infantry.toLocaleString()}\n• **Mages:** ${t5Summary.mages.toLocaleString()}\n• **Archers:** ${t5Summary.archers.toLocaleString()}\n• **Cavalry:** ${t5Summary.cavalry.toLocaleString()}\n• **Flying:** ${t5Summary.flying.toLocaleString()}`,
+                                    inline: false
+                                }
+                            )
+                            .setColor(0x00FF00)
+                            .setTimestamp();
+
+                        if (topFactions.length > 0) {
+                            const factionsText = topFactions.map(([faction, count]) => 
+                                `• **${faction}:** ${count} players`).join('\n');
+                            mainEmbed.addFields({
+                                name: "🏛️ Top Factions",
+                                value: factionsText,
+                                inline: true
+                            });
+                        }
+
+                        if (topTimezones.length > 0) {
+                            const timezonesText = topTimezones.map(([tz, count]) => 
+                                `• **${tz}:** ${count} players`).join('\n');
+                            mainEmbed.addFields({
+                                name: "🌍 Top Timezones",
+                                value: timezonesText,
+                                inline: true
+                            });
+                        }
+
+                        // Send main summary with permission handling
+                        try {
+                            await message.channel.send({ embeds: [mainEmbed] });
+                        } catch (embedError) {
+                            if (embedError.code === 50013) {
+                                // Fallback to plain text if no embed permissions
+                                let fallbackText = "🏰 **ICE CLAN - Complete Summary**\n\n";
+                                fallbackText += `👥 **Clan Overview:**\n`;
+                                fallbackText += `• Active Players: ${activePlayers}/${playersData.length}\n`;
+                                fallbackText += `• Total Power: ${totalPower.toLocaleString()}\n`;
+                                fallbackText += `• Average Power: ${Math.round(totalPower/activePlayers || 0).toLocaleString()}\n`;
+                                fallbackText += `• Total Mana: ${totalMana.toLocaleString()}\n\n`;
+                                
+                                fallbackText += `⚔️ **T5 Forces Overview:**\n`;
+                                fallbackText += `• Total T5 Soldiers: ${totalT5.toLocaleString()}\n`;
+                                fallbackText += `• Players with T5: ${playersWithT5.length}\n`;
+                                fallbackText += `• Infantry: ${t5Summary.infantry.toLocaleString()}\n`;
+                                fallbackText += `• Mages: ${t5Summary.mages.toLocaleString()}\n`;
+                                fallbackText += `• Archers: ${t5Summary.archers.toLocaleString()}\n`;
+                                fallbackText += `• Cavalry: ${t5Summary.cavalry.toLocaleString()}\n`;
+                                fallbackText += `• Flying: ${t5Summary.flying.toLocaleString()}\n\n`;
+
+                                if (topFactions.length > 0) {
+                                    fallbackText += `🏛️ **Top Factions:**\n`;
+                                    topFactions.forEach(([faction, count]) => {
+                                        fallbackText += `• ${faction}: ${count} players\n`;
+                                    });
+                                    fallbackText += `\n`;
+                                }
+
+                                if (topTimezones.length > 0) {
+                                    fallbackText += `🌍 **Top Timezones:**\n`;
+                                    topTimezones.forEach(([tz, count]) => {
+                                        fallbackText += `• ${tz}: ${count} players\n`;
+                                    });
+                                }
+
+                                await message.channel.send(fallbackText);
+                            } else {
+                                throw embedError; // Re-throw if not a permission error
+                            }
+                        }
+
+                        // Create detailed troop breakdown
+                        if (totalT5 > 0) {
+                            let troopDetails = "```\n🏆 TOP T5 PLAYERS:\n";
+                            playersWithT5.slice(0, 10).forEach((player, index) => {
+                                troopDetails += `${index + 1}. ${player.userName}: ${player.totalT5.toLocaleString()} T5\n`;
+                            });
+                            troopDetails += "\n📊 COMPLETE TROOP BREAKDOWN:\n";
+                            
+                            ['t5', 't4', 't3', 't2', 't1'].forEach(tier => {
+                                const tierData = troopSummary[tier];
+                                const tierTotal = Object.values(tierData).reduce((sum, count) => sum + count, 0);
+                                if (tierTotal > 0) {
+                                    troopDetails += `\n${tier.toUpperCase()} TROOPS (${tierTotal.toLocaleString()} total):\n`;
+                                    Object.entries(tierData).forEach(([type, count]) => {
+                                        if (count > 0) {
+                                            troopDetails += `  ${type}: ${count.toLocaleString()}\n`;
+                                        }
+                                    });
+                                }
+                            });
+                            troopDetails += "```";
+
+                            // Split message if too long
+                            if (troopDetails.length > 1950) {
+                                const chunks = troopDetails.match(/[\s\S]{1,1900}/g) || [troopDetails];
+                                for (const chunk of chunks) {
+                                    try {
+                                        await message.channel.send(chunk);
+                                    } catch (sendError) {
+                                        console.error("Error sending troop details chunk:", sendError);
+                                        // Continue with next chunk
+                                    }
+                                }
+                            } else {
+                                try {
+                                    await message.channel.send(troopDetails);
+                                } catch (sendError) {
+                                    console.error("Error sending troop details:", sendError);
+                                }
+                            }
+                        }
+
+                        // Strategic recommendations
+                        const recommendations = [];
+                        if (totalT5 < 1000000) {
+                            recommendations.push("🔥 Focus on T5 troop training for stronger offensive capabilities");
+                        }
+                        if (playersWithT5.length < activePlayers * 0.5) {
+                            recommendations.push("📈 Encourage more players to build T5 troops");
+                        }
+                        if (topTimezones.length > 3) {
+                            recommendations.push("🌍 Consider timezone coordination for better rally participation");
+                        }
+                        if (totalPower / activePlayers < 100000000) {
+                            recommendations.push("💪 Focus on power growth activities");
+                        }
+
+                        if (recommendations.length > 0) {
+                            const recEmbed = new EmbedBuilder()
+                                .setTitle("💡 Strategic Recommendations")
+                                .setDescription(recommendations.join('\n\n'))
+                                .setColor(0xFFA500);
+                                
+                            // Send recommendations with permission handling
+                            try {
+                                await message.channel.send({ embeds: [recEmbed] });
+                            } catch (embedError) {
+                                if (embedError.code === 50013) {
+                                    // Fallback to plain text for recommendations
+                                    let recText = "💡 **Strategic Recommendations:**\n\n";
+                                    recommendations.forEach(rec => {
+                                        recText += `• ${rec}\n`;
+                                    });
+                                    await message.channel.send(recText);
+                                } else {
+                                    throw embedError; // Re-throw if not a permission error
+                                }
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error("Error in !clan-summary command:", error);
+                        await message.channel.send("Sorry, an error occurred while generating the clan summary. Please try again.");
                     }
                 }
 
