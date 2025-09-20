@@ -543,7 +543,8 @@ try {
                                                 playersWithT5.push({
                                                     userName: player.userName || 'Unknown',
                                                     userId: player.userId,
-                                                    totalT5: count
+                                                    totalT5: count,
+                                                    power: safeParseNumber(player.power) || 0
                                                 });
                                             } else {
                                                 const existingPlayer = playersWithT5.find(p => p.userId === player.userId);
@@ -648,48 +649,6 @@ try {
                                 await message.channel.send(fallbackText);
                             } else {
                                 throw embedError; // Re-throw if not a permission error
-                            }
-                        }
-
-                        // Create detailed troop breakdown
-                        if (totalT5 > 0) {
-                            let troopDetails = "```\n🏆 TOP T5 PLAYERS:\n";
-                            playersWithT5.slice(0, 10).forEach((player, index) => {
-                                troopDetails += `${index + 1}. ${player.userName}: ${player.totalT5.toLocaleString()} T5\n`;
-                            });
-                            troopDetails += "\n📊 COMPLETE TROOP BREAKDOWN:\n";
-                            
-                            ['t5', 't4', 't3', 't2', 't1'].forEach(tier => {
-                                const tierData = troopSummary[tier];
-                                const tierTotal = Object.values(tierData).reduce((sum, count) => sum + count, 0);
-                                if (tierTotal > 0) {
-                                    troopDetails += `\n${tier.toUpperCase()} TROOPS (${tierTotal.toLocaleString()} total):\n`;
-                                    Object.entries(tierData).forEach(([type, count]) => {
-                                        if (count > 0) {
-                                            troopDetails += `  ${type}: ${count.toLocaleString()}\n`;
-                                        }
-                                    });
-                                }
-                            });
-                            troopDetails += "```";
-
-                            // Split message if too long
-                            if (troopDetails.length > 1950) {
-                                const chunks = troopDetails.match(/[\s\S]{1,1900}/g) || [troopDetails];
-                                for (const chunk of chunks) {
-                                    try {
-                                        await message.channel.send(chunk);
-                                    } catch (sendError) {
-                                        console.error("Error sending troop details chunk:", sendError);
-                                        // Continue with next chunk
-                                    }
-                                }
-                            } else {
-                                try {
-                                    await message.channel.send(troopDetails);
-                                } catch (sendError) {
-                                    console.error("Error sending troop details:", sendError);
-                                }
                             }
                         }
 
