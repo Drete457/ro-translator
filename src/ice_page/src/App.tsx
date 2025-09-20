@@ -91,9 +91,7 @@ const App = () => {
   };
 
   const handleFactionSelect = (faction: Faction | null) => {
-    console.log('Selected faction:', faction);
     if (!faction) {
-      console.log('No faction selected, returning to faction selection.');
       setEntryStep('faction-selection');
       return;
     }
