@@ -405,26 +405,59 @@ try {
                         });
 
                         const playersData = Array.from(latestPerUser.values());
-                        const analysis = analyzePlayerTimezones(playersData);
+
+                        // Only consider players with >= 45M power for the coordination timer
+                        const safeParseNumber = (value) => {
+                            if (value === null || value === undefined) return 0;
+                            if (typeof value === 'number') {
+                                return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+                            }
+                            if (typeof value === 'string') {
+                                const sanitized = value.replace(/[^0-9]/g, '');
+                                if (!sanitized) return 0;
+                                const num = parseInt(sanitized, 10);
+                                return Number.isFinite(num) && num > 0 ? num : 0;
+                            }
+                            const num = parseInt(value, 10);
+                            return Number.isFinite(num) && num > 0 ? num : 0;
+                        };
+
+                        const highPowerPlayers = playersData.filter(p => safeParseNumber(p.power) >= 45_000_000);
+
+                        // Overall analysis (all players)
+                        const analysisAll = analyzePlayerTimezones(playersData);
+                        // Timer analysis (>=45M power)
+                        const analysisHigh = analyzePlayerTimezones(highPowerPlayers);
 
                         let responseMessage = `🌍 **ICE Clan Timezone Analysis** 🌍\n\n`;
                         responseMessage += `📊 **Data Overview:**\n`;
-                        responseMessage += `• Unique players analyzed: ${analysis.totalPlayers} (from ${allPlayersData.length} total entries)\n`;
-                        responseMessage += `• Players with timezone data: ${analysis.playersWithTimezone}\n\n`;
+                        responseMessage += `• Unique players analyzed: ${analysisAll.totalPlayers} (from ${allPlayersData.length} total entries)\n`;
+                        responseMessage += `• Players with timezone data: ${analysisAll.playersWithTimezone}\n`;
+                        responseMessage += `• Players ≥45M power: ${highPowerPlayers.length} (with timezone: ${analysisHigh.playersWithTimezone})\n\n`;
 
-                        if (analysis.playersWithTimezone === 0) {
+                        if (analysisAll.playersWithTimezone === 0) {
                             responseMessage += `❌ No timezone information available for analysis.\n`;
                             responseMessage += `Please make sure players update their timezone information in the database.`;
                         } else {
                             responseMessage += `🏆 **Top Timezones:**\n`;
-                            analysis.topTimezones.forEach((tz, index) => {
-                                const percentage = Math.round((tz[1] / analysis.playersWithTimezone) * 100);
+                            analysisAll.topTimezones.forEach((tz, index) => {
+                                const percentage = Math.round((tz[1] / analysisAll.playersWithTimezone) * 100);
                                 responseMessage += `${index + 1}. ${tz[0]}: ${tz[1]} players (${percentage}%)\n`;
                             });
 
-                            if (analysis.optimalTimes.length > 0) {
-                                responseMessage += `\n⏰ **Best Coordination Times:**\n`;
-                                analysis.optimalTimes.forEach((time, index) => {
+                            // Use only >=45M power players for coordination timer
+                            if (analysisHigh.optimalTimes.length > 0) {
+                                responseMessage += `\n⏰ **Best Coordination Times (≥45M power):**\n`;
+                                analysisHigh.optimalTimes.forEach((time, index) => {
+                                    responseMessage += `${index + 1}. **${time.utcTime}** - ${time.activePlayersCount} players likely active\n`;
+                                    if (time.localTimes.length > 0 && time.localTimes.length <= 5) {
+                                        responseMessage += `   Local times: ${time.localTimes.slice(0, 3).join(', ')}\n`;
+                                    }
+                                });
+                            } else if (analysisAll.optimalTimes.length > 0) {
+                                // Fallback: if no >=45M players have timezone data, show overall
+                                responseMessage += `\n⏰ **Best Coordination Times (all players - no ≥45M data):**\n`;
+                                analysisAll.optimalTimes.forEach((time, index) => {
                                     responseMessage += `${index + 1}. **${time.utcTime}** - ${time.activePlayersCount} players likely active\n`;
                                     if (time.localTimes.length > 0 && time.localTimes.length <= 5) {
                                         responseMessage += `   Local times: ${time.localTimes.slice(0, 3).join(', ')}\n`;
@@ -433,7 +466,7 @@ try {
                             }
 
                             responseMessage += `\n💡 **Recommendations:**\n`;
-                            analysis.recommendations.forEach(rec => {
+                            analysisAll.recommendations.forEach(rec => {
                                 responseMessage += `• ${rec}\n`;
                             });
                         }
