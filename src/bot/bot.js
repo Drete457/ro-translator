@@ -395,8 +395,11 @@ try {
                         // Filter to get only the latest entry per userId
                         const latestPerUser = new Map();
                         allPlayersData.forEach(entry => {
-                            if (!latestPerUser.has(entry.userId) || 
-                                new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
+                            const current = latestPerUser.get(entry.userId);
+                            const tsNew = entry && entry.timestamp ? new Date(entry.timestamp) : null;
+                            const tsCur = current && current.timestamp ? new Date(current.timestamp) : null;
+                            const isNewer = tsNew && (!tsCur || tsNew > tsCur);
+                            if (!current || isNewer) {
                                 latestPerUser.set(entry.userId, entry);
                             }
                         });
@@ -475,10 +478,21 @@ try {
 
                         const playersData = Array.from(latestPerUser.values());
 
-                        // Helper function to safely parse numbers and ignore 0/null
+                        // Helper: safely parse numbers from various formats ("122 000 000", "122,000,000", "122.000.000")
                         const safeParseNumber = (value) => {
-                            const num = parseInt(value) || 0;
-                            return num > 0 ? num : 0;
+                            if (value === null || value === undefined) return 0;
+                            if (typeof value === 'number') {
+                                return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+                            }
+                            if (typeof value === 'string') {
+                                // Remove all non-digit characters (keep minus and dot only if needed). Power/troops are integers, so strip separators.
+                                const sanitized = value.replace(/[^0-9]/g, '');
+                                if (!sanitized) return 0;
+                                const num = parseInt(sanitized, 10);
+                                return Number.isFinite(num) && num > 0 ? num : 0;
+                            }
+                            const num = parseInt(value, 10);
+                            return Number.isFinite(num) && num > 0 ? num : 0;
                         };
 
                         // Calculate T5 soldiers summary
@@ -502,7 +516,7 @@ try {
                         // Other statistics
                         let totalPower = 0;
                         let totalMana = 0;
-                        let activePlayers = 0;
+                        let activePlayers = 0; // players with reported power > 0
                         const factions = {};
                         const timeZones = {};
                         const playersWithT5 = [];
@@ -570,6 +584,11 @@ try {
                         // Sort players with T5 by total T5 count
                         playersWithT5.sort((a, b) => b.totalT5 - a.totalT5);
 
+                        // Compute averages
+                        const totalPlayers = playersData.length;
+                        const avgPowerReported = activePlayers > 0 ? Math.round(totalPower / activePlayers) : 0;
+                        const avgPowerAll = totalPlayers > 0 ? Math.round(totalPower / totalPlayers) : 0;
+
                         // Create main summary embed
                         const mainEmbed = new EmbedBuilder()
                             .setTitle("🏰 ICE CLAN - Complete Summary")
@@ -577,12 +596,12 @@ try {
                             .addFields(
                                 {
                                     name: "👥 Clan Overview",
-                                    value: `• **Active Players:** ${activePlayers}/${playersData.length}\n• **Total Power:** ${totalPower.toLocaleString()}\n• **Average Power:** ${Math.round(totalPower/activePlayers || 0).toLocaleString()}\n• **Total Mana:** ${totalMana.toLocaleString()}`,
+                                    value: `• **Active Players (reported power):** ${activePlayers}/${totalPlayers}\n• **Total Power:** ${totalPower.toLocaleString()}\n• **Avg Power (reported):** ${avgPowerReported.toLocaleString()}\n• **Avg Power (all players):** ${avgPowerAll.toLocaleString()}\n• **Total Mana:** ${totalMana.toLocaleString()}`,
                                     inline: false
                                 },
                                 {
                                     name: "⚔️ T5 Forces Overview",
-                                    value: `• **Total T5 Soldiers:** ${totalT5.toLocaleString()}\n• **Players with T5:** ${playersWithT5.length}\n• **Infantry:** ${t5Summary.infantry.toLocaleString()}\n• **Mages:** ${t5Summary.mages.toLocaleString()}\n• **Archers:** ${t5Summary.archers.toLocaleString()}\n• **Cavalry:** ${t5Summary.cavalry.toLocaleString()}\n• **Flying:** ${t5Summary.flying.toLocaleString()}`,
+                                    value: `• **Total T5 Soldiers:** ${Number(totalT5).toLocaleString()}\n• **Players with T5:** ${playersWithT5.length}\n• **Infantry:** ${Number(t5Summary.infantry).toLocaleString()}\n• **Mages:** ${Number(t5Summary.mages).toLocaleString()}\n• **Archers:** ${Number(t5Summary.archers).toLocaleString()}\n• **Cavalry:** ${Number(t5Summary.cavalry).toLocaleString()}\n• **Flying:** ${Number(t5Summary.flying).toLocaleString()}`,
                                     inline: false
                                 }
                             )
@@ -617,19 +636,20 @@ try {
                                 // Fallback to plain text if no embed permissions
                                 let fallbackText = "🏰 **ICE CLAN - Complete Summary**\n\n";
                                 fallbackText += `👥 **Clan Overview:**\n`;
-                                fallbackText += `• Active Players: ${activePlayers}/${playersData.length}\n`;
+                                fallbackText += `• Active Players (reported power): ${activePlayers}/${totalPlayers}\n`;
                                 fallbackText += `• Total Power: ${totalPower.toLocaleString()}\n`;
-                                fallbackText += `• Average Power: ${Math.round(totalPower/activePlayers || 0).toLocaleString()}\n`;
+                                fallbackText += `• Avg Power (reported): ${avgPowerReported.toLocaleString()}\n`;
+                                fallbackText += `• Avg Power (all players): ${avgPowerAll.toLocaleString()}\n`;
                                 fallbackText += `• Total Mana: ${totalMana.toLocaleString()}\n\n`;
                                 
                                 fallbackText += `⚔️ **T5 Forces Overview:**\n`;
-                                fallbackText += `• Total T5 Soldiers: ${totalT5.toLocaleString()}\n`;
+                                fallbackText += `• Total T5 Soldiers: ${Number(totalT5).toLocaleString()}\n`;
                                 fallbackText += `• Players with T5: ${playersWithT5.length}\n`;
-                                fallbackText += `• Infantry: ${t5Summary.infantry.toLocaleString()}\n`;
-                                fallbackText += `• Mages: ${t5Summary.mages.toLocaleString()}\n`;
-                                fallbackText += `• Archers: ${t5Summary.archers.toLocaleString()}\n`;
-                                fallbackText += `• Cavalry: ${t5Summary.cavalry.toLocaleString()}\n`;
-                                fallbackText += `• Flying: ${t5Summary.flying.toLocaleString()}\n\n`;
+                                fallbackText += `• Infantry: ${Number(t5Summary.infantry).toLocaleString()}\n`;
+                                fallbackText += `• Mages: ${Number(t5Summary.mages).toLocaleString()}\n`;
+                                fallbackText += `• Archers: ${Number(t5Summary.archers).toLocaleString()}\n`;
+                                fallbackText += `• Cavalry: ${Number(t5Summary.cavalry).toLocaleString()}\n`;
+                                fallbackText += `• Flying: ${Number(t5Summary.flying).toLocaleString()}\n\n`;
 
                                 if (topFactions.length > 0) {
                                     fallbackText += `🏛️ **Top Factions:**\n`;
