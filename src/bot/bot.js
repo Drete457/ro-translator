@@ -111,6 +111,7 @@ try {
                     commands += "`!players-info-latest [yyyy-mm-dd]` - Latest entry per user (explicit)\n";
                     commands += "`!players-info-all [yyyy-mm-dd]` - All entries (bulk operations)\n";
                     commands += "`!players-info-merits [yyyy-mm-dd]` - Player merits data\n";
+                    commands += "`!players-final-list <id1> <id2> <id3>...` - Complete player info + merits for specific IDs\n";
                     commands += "`!player_time_zone` - Timezone analysis\n";
                     commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
@@ -375,6 +376,131 @@ try {
                         fs.unlinkSync(filePath);
                     } else {
                         await message.channel.send('Error generating Excel file for merits. Please try again later.');
+                    }
+                }
+
+                if (message.content.startsWith("!players-final-list")) {
+                    const args = message.content.split(" ");
+                    args.shift();
+
+                    if (args.length === 0) {
+                        await message.channel.send("Please provide player IDs! Usage: `!players-final-list 312312, 12333, 211222` or `!players-final-list 312312 12333 211222`");
+                        return;
+                    }
+
+                    // Parse player IDs from args (can be separated by commas, spaces, or both)
+                    const playerIds = args.join(" ")
+                        .split(/[\s,]+/)
+                        .map(id => id.trim())
+                        .filter(id => id.length > 0);
+
+                    if (playerIds.length === 0) {
+                        await message.channel.send("No valid player IDs found. Please provide at least one player ID.");
+                        return;
+                    }
+
+                    const db = await getFirebase();
+                    
+                    // Fetch all players info
+                    const playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
+                    const querySnapshotPlayers = await getDocs(playersQueryRef);
+                    const allPlayersData = querySnapshotPlayers.docs.map(doc => doc.data());
+
+                    // Fetch all merits info
+                    const meritsQueryRef = query(collection(db, "playersMerits"), orderBy("timestamp", "desc"));
+                    const querySnapshotMerits = await getDocs(meritsQueryRef);
+                    const allMeritsData = querySnapshotMerits.docs.map(doc => doc.data());
+
+                    // Filter to get only the latest entry per userId for players info
+                    const latestPlayersPerUser = new Map();
+                    allPlayersData.forEach(entry => {
+                        if (!latestPlayersPerUser.has(entry.userId) || 
+                            new Date(entry.timestamp) > new Date(latestPlayersPerUser.get(entry.userId).timestamp)) {
+                            latestPlayersPerUser.set(entry.userId, entry);
+                        }
+                    });
+
+                    // Filter to get only the latest entry per userId for merits
+                    const latestMeritsPerUser = new Map();
+                    allMeritsData.forEach(entry => {
+                        if (!latestMeritsPerUser.has(entry.userId) || 
+                            new Date(entry.timestamp) > new Date(latestMeritsPerUser.get(entry.userId).timestamp)) {
+                            latestMeritsPerUser.set(entry.userId, entry);
+                        }
+                    });
+
+                    // Filter data for requested player IDs
+                    const finalListData = [];
+                    const notFoundIds = [];
+
+                    playerIds.forEach(userId => {
+
+                        let playerData = latestPlayersPerUser.get(userId);
+                        if (!playerData && !isNaN(userId)) {
+                            playerData = latestPlayersPerUser.get(Number(userId));
+                        }
+                        if (!playerData) {
+                            playerData = latestPlayersPerUser.get(String(userId));
+                        }
+
+                        let meritsData = latestMeritsPerUser.get(userId);
+                        if (!meritsData && !isNaN(userId)) {
+                            meritsData = latestMeritsPerUser.get(Number(userId));
+                        }
+                        if (!meritsData) {
+                            meritsData = latestMeritsPerUser.get(String(userId));
+                        }
+
+                        if (playerData) {
+                            const power = playerData.power ? Number(playerData.power) : 0;
+                            const merits = meritsData && meritsData.merits ? Number(meritsData.merits) : 0;
+                            let percentage = "N/A";
+                            if (power > 0 && merits > 0) {
+                                percentage = `${Math.round((merits / power) * 10000) / 100}%`;
+                            }
+
+                            finalListData.push({
+                                ...playerData,
+                                merits: merits || "N/A",
+                                percentageMeritsDividePower: percentage,
+                                meritsTimestamp: meritsData ? meritsData.timestamp : "N/A"
+                            });
+                        } else {
+                            notFoundIds.push(userId);
+                        }
+                    });
+
+                    if (finalListData.length === 0) {
+                        await message.channel.send(`No player information found for the provided IDs: ${playerIds.join(", ")}`);
+                        return;
+                    }
+
+                    // Create combined header with all player info fields plus merits
+                    const combinedHeader = {
+                        ...playerInfo,
+                        merits: undefined,
+                        percentageMeritsDividePower: '',
+                        meritsTimestamp: ''
+                    };
+
+                    const fileName = `players_final_list_${Date.now()}.xlsx`;
+                    const filePath = await createExcelFile(combinedHeader, finalListData, fileName, `Final Players List (${finalListData.length} players)`);
+
+                    if (filePath) {
+                        const attachment = new AttachmentBuilder(filePath, { name: fileName });
+                        let responseMessage = `Here is the final players list with all information including merits:\n📊 **${finalListData.length}** players found`;
+                        
+                        if (notFoundIds.length > 0) {
+                            responseMessage += `\n⚠️ **${notFoundIds.length}** IDs not found: ${notFoundIds.join(", ")}`;
+                        }
+
+                        await message.channel.send({
+                            content: responseMessage,
+                            files: [attachment]
+                        });
+                        fs.unlinkSync(filePath);
+                    } else {
+                        await message.channel.send('Error generating Excel file. Please try again later.');
                     }
                 }
 
