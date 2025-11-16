@@ -116,7 +116,7 @@ try {
                     commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
                     if (message.author.id === discordOwnerId) {
-                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`";
+                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
@@ -905,6 +905,37 @@ try {
                     } catch (error) {
                         console.error("Error in !save_conversations command:", error);
                         await safeSendMessage(message.channel, "❌ Error saving conversations.", { fallbackUser: message.author });
+                    }
+                }
+
+                if (message.content === "!goodbye" && message.author.id === discordOwnerId) {
+                    try {
+                        const guild = message.guild;
+                        
+                        if (!guild) {
+                            await message.channel.send("❌ This command can only be used in a server.");
+                            return;
+                        }
+
+                        const goodbyeMessage = `👋 **Goodbye everyone!**\n\nI'm leaving this server now. It's been a pleasure serving you!\n\n*Farewell from ${client.user.username}* 💙`;
+                        
+                        await message.channel.send(goodbyeMessage);
+                        
+                        console.log(`Bot is leaving server: ${guild.name} (ID: ${guild.id})`);
+                        
+                        // Wait 2 seconds to ensure the message is sent before leaving
+                        setTimeout(async () => {
+                            try {
+                                await guild.leave();
+                                console.log(`Successfully left server: ${guild.name}`);
+                            } catch (leaveError) {
+                                console.error("Error leaving server:", leaveError);
+                            }
+                        }, 2000);
+                        
+                    } catch (error) {
+                        console.error("Error in !goodbye command:", error);
+                        await message.channel.send("❌ An error occurred while trying to leave the server.");
                     }
                 }
             }
