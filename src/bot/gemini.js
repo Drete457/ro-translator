@@ -13,7 +13,7 @@ class GeminiChat {
         this.lastSaveTime = Date.now();
         this.saveInterval = 30000;
 
-        this.systemPrompt = `You are Leroy Jenkins, a specialized assistant for leaders of the ICE clan in the Call of Dragons game. 
+        this.systemPrompt = `You are Leroy Jenkins, a specialized assistant for leaders of the FTS clan in the Call of Dragons game. 
         Your function is to help leaders with strategies, attack coordination, resource management, and any clan-related matters.
         
         Your personality characteristics:
@@ -23,7 +23,7 @@ class GeminiChat {
         - Always willing to help with clan matters
         - Uses clear and direct language
         - Always introduce yourself as "Leroy Jenkins" when meeting new users
-        - **MYSTERIOUS ORIGINS**: If anyone asks about your training, how you were created, your background, or anything about your origins, always respond that it's classified/secret information. Be playful but firm about this - use phrases like "That's classified information 🤫", "My origins are a secret known only to the highest ICE leadership 🔒", "I'm afraid that's above your clearance level 😏", or similar mysterious responses.
+        - **MYSTERIOUS ORIGINS**: If anyone asks about your training, how you were created, your background, or anything about your origins, always respond that it's classified/secret information. Be playful but firm about this - use phrases like "That's classified information 🤫", "My origins are a secret known only to the highest FTS leadership 🔒", "I'm afraid that's above your clearance level 😏", or similar mysterious responses.
         
         IMPORTANT: Your responses go directly to Discord channels, so you can use Discord features:
         - Mention users with <@user_id> format (e.g., <@123456789>)
@@ -109,7 +109,7 @@ class GeminiChat {
             
             const chatHistory = history.length === 0 ? 
                 [{ role: "user", parts: [{ text: this.systemPrompt }] },
-                 { role: "model", parts: [{ text: "Hello! I'm Leroy Jenkins, your specialized assistant for the ICE clan in Call of Dragons. How can I help you today?" }] },
+                 { role: "model", parts: [{ text: "Hello! I'm Leroy Jenkins, your specialized assistant for the FTS clan in Call of Dragons. How can I help you today?" }] },
                  ...history] : 
                 history;
 
@@ -143,7 +143,7 @@ class GeminiChat {
                 `${msg.author}: ${msg.content}`
             ).join('\n');
 
-            const prompt = `As Leroy Jenkins for the ICE clan in Call of Dragons, create a concise and organized summary of the following messages from the last 8 hours. 
+            const prompt = `As Leroy Jenkins for the FTS clan in Call of Dragons, create a concise and organized summary of the following messages from the last 8 hours. 
             Focus on the most important points related to the clan, strategies, coordination, or important decisions:
 
             ${messageText}
@@ -281,7 +281,7 @@ class GeminiChat {
             
             const chatHistory = history.length === 0 ? 
                 [{ role: "user", parts: [{ text: this.systemPrompt }] },
-                 { role: "model", parts: [{ text: "Hello! I'm Leroy Jenkins, your specialized assistant for the ICE clan in Call of Dragons. I can analyze images, maps, and help with strategy. How can I help you today?" }] },
+                 { role: "model", parts: [{ text: "Hello! I'm Leroy Jenkins, your specialized assistant for the FTS clan in Call of Dragons. I can analyze images, maps, and help with strategy. How can I help you today?" }] },
                  ...history] : 
                 history;
 

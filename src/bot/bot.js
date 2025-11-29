@@ -7,7 +7,11 @@ const {
     ChannelType,
     quote,
     AttachmentBuilder,
-    EmbedBuilder
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    MessageFlags
 } = require("discord.js");
 const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
 const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
@@ -555,7 +559,7 @@ try {
                         // Timer analysis (>=45M power)
                         const analysisHigh = analyzePlayerTimezones(highPowerPlayers);
 
-                        let responseMessage = `🌍 **ICE Clan Timezone Analysis** 🌍\n\n`;
+                        let responseMessage = `🌍 **FTS Clan Timezone Analysis** 🌍\n\n`;
                         responseMessage += `📊 **Data Overview:**\n`;
                         responseMessage += `• Unique players analyzed: ${analysisAll.totalPlayers} (from ${allPlayersData.length} total entries)\n`;
                         responseMessage += `• Players with timezone data: ${analysisAll.playersWithTimezone}\n`;
@@ -750,7 +754,7 @@ try {
 
                         // Create main summary embed
                         const mainEmbed = new EmbedBuilder()
-                            .setTitle("🏰 ICE CLAN - Complete Summary")
+                            .setTitle("🏰 FTS CLAN - Complete Summary")
                             .setDescription(`**Comprehensive clan capabilities analysis**\n*Based on latest data per player*`)
                             .addFields(
                                 {
@@ -793,7 +797,7 @@ try {
                         } catch (embedError) {
                             if (embedError.code === 50013) {
                                 // Fallback to plain text if no embed permissions
-                                let fallbackText = "🏰 **ICE CLAN - Complete Summary**\n\n";
+                                let fallbackText = "🏰 **FTS CLAN - Complete Summary**\n\n";
                                 fallbackText += `👥 **Clan Overview:**\n`;
                                 fallbackText += `• Active Players (reported power): ${activePlayers}/${totalPlayers}\n`;
                                 fallbackText += `• Total Power: ${totalPower.toLocaleString()}\n`;
@@ -910,7 +914,7 @@ try {
             }
 
             if (message.content === "!commands") {
-                let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!ICE message`, `!analyze_images optional_message`, `!resume`";
+                let commandsText = "Commands available: `!happy_birthday @username`, `!bastions_countdown live_points damage_per_second`, `!countdown time message`, `!stop_countdown`, `!FTS message`, `!analyze_images optional_message`, `!resume`";
 
                 if (calendarHelper) {
                     commandsText += ", `!help_game_event`, `!help_calendar_event`";
@@ -952,7 +956,7 @@ try {
                      💡 **Tips:**
                      • Use DD/MM/YYYY format for dates
                      • Duration: 1h, 30m, 1h30m, etc.
-                     • Events are automatically added to the ICE Alliance calendar`;
+                     • Events are automatically added to the FTS Alliance calendar`;
 
                 await message.channel.send(helpMessage);
                 return;
@@ -1364,12 +1368,12 @@ try {
                 }
             }
 
-            if (message.content.startsWith("!ICE")) {
+            if (message.content.startsWith("!FTS")) {
                 const args = message.content.split(" ");
                 args.shift();
 
                 if (args.length === 0) {
-                    await message.channel.send("Please write a message! Usage: `!ICE your message here`");
+                    await message.channel.send("Please write a message! Usage: `!FTS your message here`");
                     return;
                 }
 
@@ -1417,7 +1421,7 @@ try {
                         await message.channel.send(response);
                     }
                 } catch (error) {
-                    console.error("Error in !ICE command:", error);
+                    console.error("Error in !FTS command:", error);
                     await message.channel.send("Sorry, an error occurred while processing your message. Please try again.");
                 }
             }
@@ -1565,6 +1569,9 @@ try {
         }
     });
 
+    // Store pending translations for button interactions
+    const pendingTranslations = new Map();
+
     client.on(Events.MessageReactionAdd, async (reaction, user) => {
         if (user.bot) return;
 
@@ -1613,14 +1620,117 @@ try {
                 autoCorrect: true,
                 requestFunction: fetch,
             });
-            user.send(`${quote(messageToTranslate)}\n\n${res.text}\n\n`).catch(dmError =>
-                console.log("Error sending translated message to user DM: ", user.id, dmError)
-            );
+
+            // Translate UI texts to target language
+            const uiTexts = {
+                viewTranslation: "📖 View Translation",
+                translationReady: "Translation is ready! Click the button below to view it (only you will see it).",
+                original: "Original",
+                translation: "Translation"
+            };
+
+            try {
+                const uiTranslations = await translate(
+                    [uiTexts.viewTranslation, uiTexts.translationReady, uiTexts.original, uiTexts.translation],
+                    {
+                        to: countryInformation.langs[0],
+                        forceBatch: false,
+                        autoCorrect: false,
+                        requestFunction: fetch,
+                    }
+                );
+                
+                if (Array.isArray(uiTranslations)) {
+                    uiTexts.viewTranslation = uiTranslations[0]?.text || uiTexts.viewTranslation;
+                    uiTexts.translationReady = uiTranslations[1]?.text || uiTexts.translationReady;
+                    uiTexts.original = uiTranslations[2]?.text || uiTexts.original;
+                    uiTexts.translation = uiTranslations[3]?.text || uiTexts.translation;
+                }
+            } catch (uiTranslateError) {
+                // If UI translation fails, use English defaults
+                console.log("UI translation failed, using English defaults");
+            }
+
+            // Create a unique ID for this translation
+            const translationId = `translate_${Date.now()}_${user.id}`;
+
+            // Store the translation data
+            pendingTranslations.set(translationId, {
+                originalMessage: messageToTranslate,
+                translatedText: res.text,
+                countryName: countryInformation.name,
+                langCode: countryInformation.langs[0],
+                uiTexts: uiTexts,
+                requesterId: user.id,
+                timestamp: Date.now()
+            });
+
+            // Create button for viewing translation
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(translationId)
+                        .setLabel(uiTexts.viewTranslation)
+                        .setStyle(ButtonStyle.Primary)
+                );
+
+            // Send message with button
+            const buttonMessage = await reaction.message.channel.send({
+                content: `<@${user.id}> 🌐 ${uiTexts.translationReady}`,
+                components: [row],
+                allowedMentions: { users: [user.id] }
+            });
+
+            // Auto-delete button message after 60 seconds and clean up stored translation
+            setTimeout(async () => {
+                try {
+                    pendingTranslations.delete(translationId);
+                    await buttonMessage.delete();
+                } catch (deleteError) {
+                    // Message might already be deleted, ignore error
+                }
+            }, 60000);
+
         } catch (translateError) {
-            user.send(
-                `${quote(messageToTranslate)}\n\nError: It is not possible to translate to the language for ${countryInformation.name}.\n\n`
-            ).catch(dmError => console.log("Error sending translation error to user DM: ", user.id, dmError));
+            const errorMessage = await reaction.message.channel.send({
+                content: `<@${user.id}> ❌ Error: It is not possible to translate to ${countryInformation.name}.`,
+                allowedMentions: { users: [user.id] }
+            });
+
+            // Auto-delete error message after 10 seconds
+            setTimeout(async () => {
+                try {
+                    await errorMessage.delete();
+                } catch (deleteError) {
+                    // Message might already be deleted, ignore error
+                }
+            }, 10000);
         }
+    });
+
+    // Handle button interactions for translations
+    client.on(Events.InteractionCreate, async (interaction) => {
+        if (!interaction.isButton()) return;
+
+        // Check if this is a translation button
+        if (!interaction.customId.startsWith('translate_')) return;
+
+        const translationData = pendingTranslations.get(interaction.customId);
+
+        if (!translationData) {
+            await interaction.reply({
+                content: '❌ This translation has expired. Please react again to get a new translation.',
+                flags: MessageFlags.Ephemeral
+            });
+            return;
+        }
+
+        // Send ephemeral reply with translation (only the user who clicked sees it)
+        const uiTexts = translationData.uiTexts || { original: "Original", translation: "Translation" };
+        await interaction.reply({
+            content: `🌐 **${uiTexts.translation}:**\n\n**${uiTexts.original}:**\n${quote(translationData.originalMessage)}\n\n**${uiTexts.translation}:**\n${translationData.translatedText}`,
+            flags: MessageFlags.Ephemeral
+        });
     });
 
 
