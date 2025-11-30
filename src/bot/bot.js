@@ -18,6 +18,7 @@ const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
 const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
 const fs = require('fs');
+const os = require('os');
 const { birthdayMemes, generateBirthdayMessage } = require('./birthday');
 const { formatTime, parseDurationToSeconds } = require('./helpers/timer-format');
 
@@ -1786,8 +1787,183 @@ try {
         }
     }
 
-    const gracefulShutdown = () => {
+    // ==================== BOT MONITORING SYSTEM ====================
+    const monitoringChannelId = '1444769762419671104';
+    const botStartTime = Date.now();
+    let statusMessageCount = 0;
+
+    // Helper function to format bytes to human readable
+    const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    // Helper function to format uptime
+    const formatUptime = (ms) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        
+        if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+        if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+        if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+        return `${seconds}s`;
+    };
+
+    // Function to get system stats
+    const getSystemStats = () => {
+        const memUsage = process.memoryUsage();
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const usedMem = totalMem - freeMem;
+        const cpus = os.cpus();
+        
+        // Calculate CPU usage (average across all cores)
+        let totalIdle = 0;
+        let totalTick = 0;
+        cpus.forEach(cpu => {
+            for (const type in cpu.times) {
+                totalTick += cpu.times[type];
+            }
+            totalIdle += cpu.times.idle;
+        });
+        const cpuUsage = ((1 - totalIdle / totalTick) * 100).toFixed(1);
+
+        return {
+            // Process memory
+            heapUsed: memUsage.heapUsed,
+            heapTotal: memUsage.heapTotal,
+            rss: memUsage.rss,
+            external: memUsage.external,
+            // System memory
+            totalMem,
+            freeMem,
+            usedMem,
+            memoryPercent: ((usedMem / totalMem) * 100).toFixed(1),
+            // CPU
+            cpuUsage,
+            cpuCores: cpus.length,
+            cpuModel: cpus[0]?.model || 'Unknown',
+            // System
+            platform: os.platform(),
+            nodeVersion: process.version,
+            uptime: Date.now() - botStartTime
+        };
+    };
+
+    // Function to send error to monitoring channel
+    const sendErrorToMonitoring = async (errorType, error) => {
+        try {
+            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            if (!monitoringChannel) return;
+
+            const errorEmbed = new EmbedBuilder()
+                .setTitle(`🚨 ${errorType}`)
+                .setDescription(`\`\`\`\n${error.stack || error.message || error}\n\`\`\``)
+                .setColor(0xFF0000)
+                .setTimestamp()
+                .addFields(
+                    { name: '⏰ Occurred At', value: new Date().toISOString(), inline: true },
+                    { name: '⏱️ Uptime', value: formatUptime(Date.now() - botStartTime), inline: true }
+                );
+
+            await monitoringChannel.send({ embeds: [errorEmbed] });
+        } catch (sendError) {
+            console.error('Failed to send error to monitoring channel:', sendError);
+        }
+    };
+
+    // Function to send status update
+    const sendStatusUpdate = async () => {
+        try {
+            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            if (!monitoringChannel) {
+                console.log('Monitoring channel not found:', monitoringChannelId);
+                return;
+            }
+
+            const stats = getSystemStats();
+            statusMessageCount++;
+
+            const statusEmbed = new EmbedBuilder()
+                .setTitle('🤖 Bot Status Report')
+                .setColor(0x00FF00)
+                .setTimestamp()
+                .addFields(
+                    { name: '📊 Status', value: '✅ Online', inline: true },
+                    { name: '⏱️ Uptime', value: formatUptime(stats.uptime), inline: true },
+                    { name: '📝 Report #', value: `${statusMessageCount}`, inline: true },
+                    { name: '💾 Process Memory', value: `Heap: ${formatBytes(stats.heapUsed)} / ${formatBytes(stats.heapTotal)}\nRSS: ${formatBytes(stats.rss)}\nExternal: ${formatBytes(stats.external)}`, inline: false },
+                    { name: '🖥️ System Memory', value: `Used: ${formatBytes(stats.usedMem)} / ${formatBytes(stats.totalMem)} (${stats.memoryPercent}%)\nFree: ${formatBytes(stats.freeMem)}`, inline: false },
+                    { name: '⚡ CPU', value: `Usage: ${stats.cpuUsage}%\nCores: ${stats.cpuCores}\nModel: ${stats.cpuModel}`, inline: false },
+                    { name: '🔧 System Info', value: `Platform: ${stats.platform}\nNode.js: ${stats.nodeVersion}`, inline: false },
+                    { name: '📈 Bot Stats', value: `Servers: ${client.guilds.cache.size}\nActive Countdowns: ${activeCountdowns.size}\nPending Translations: ${pendingTranslations.size}\nConversations: ${geminiChat.conversations?.size || 0}`, inline: false }
+                )
+                .setFooter({ text: 'Next update in 1 minute' });
+
+            await monitoringChannel.send({ embeds: [statusEmbed] });
+        } catch (error) {
+            console.error('Error sending status update:', error);
+        }
+    };
+
+    // Start monitoring when bot is ready
+    client.once(Events.ClientReady, async () => {
+        console.log(`Bot is ready! Logged in as ${client.user.tag}`);
+        
+        // Send initial startup message
+        try {
+            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            if (monitoringChannel) {
+                const startupEmbed = new EmbedBuilder()
+                    .setTitle('🚀 Bot Started')
+                    .setDescription('The bot has successfully started and is now online!')
+                    .setColor(0x00FF00)
+                    .setTimestamp()
+                    .addFields(
+                        { name: '🤖 Bot', value: client.user.tag, inline: true },
+                        { name: '🌐 Servers', value: `${client.guilds.cache.size}`, inline: true },
+                        { name: '📅 Started At', value: new Date().toISOString(), inline: false }
+                    );
+                await monitoringChannel.send({ embeds: [startupEmbed] });
+            }
+        } catch (error) {
+            console.error('Error sending startup message:', error);
+        }
+
+        // Start status update interval (every 1 minute)
+        setInterval(sendStatusUpdate, 60000);
+        
+        // Send first status after 5 seconds
+        setTimeout(sendStatusUpdate, 5000);
+    });
+
+    const gracefulShutdown = async () => {
         console.log('Bot is shutting down, saving conversations...');
+        
+        // Send shutdown message to monitoring channel
+        try {
+            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            if (monitoringChannel) {
+                const shutdownEmbed = new EmbedBuilder()
+                    .setTitle('⚠️ Bot Shutting Down')
+                    .setDescription('The bot is shutting down gracefully.')
+                    .setColor(0xFFA500)
+                    .setTimestamp()
+                    .addFields(
+                        { name: '⏱️ Total Uptime', value: formatUptime(Date.now() - botStartTime), inline: true },
+                        { name: '📝 Total Reports', value: `${statusMessageCount}`, inline: true }
+                    );
+                await monitoringChannel.send({ embeds: [shutdownEmbed] });
+            }
+        } catch (error) {
+            console.error('Error sending shutdown message:', error);
+        }
+
         if (geminiChat && geminiChat.saveConversations) {
             geminiChat.saveConversations();
         }
@@ -1798,17 +1974,20 @@ try {
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGUSR2', gracefulShutdown);
 
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', async (error) => {
         console.error('Uncaught Exception:', error);
+        await sendErrorToMonitoring('Uncaught Exception', error);
     });
 
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', async (reason, promise) => {
         console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+        await sendErrorToMonitoring('Unhandled Rejection', reason);
     });
 
     client.login(discordToken);
-    console.log("Bot is logged in and ready.");
+    console.log("Bot is logging in...");
 
 } catch (e) {
     console.log("The bot crashed: ", e);
+    // Note: Cannot send to monitoring channel here as client may not be initialized
 }
