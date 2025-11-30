@@ -1903,7 +1903,7 @@ try {
                     { name: '🔧 System Info', value: `Platform: ${stats.platform}\nNode.js: ${stats.nodeVersion}`, inline: false },
                     { name: '📈 Bot Stats', value: `Servers: ${client.guilds.cache.size}\nActive Countdowns: ${activeCountdowns.size}\nPending Translations: ${pendingTranslations.size}\nConversations: ${geminiChat.conversations?.size || 0}`, inline: false }
                 )
-                .setFooter({ text: 'Next update in 1 minute' });
+                .setFooter({ text: 'Next update in 5 minute' });
 
             await monitoringChannel.send({ embeds: [statusEmbed] });
         } catch (error) {
