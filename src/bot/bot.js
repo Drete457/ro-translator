@@ -11,7 +11,9 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    MessageFlags
+    MessageFlags,
+    GuildScheduledEventPrivacyLevel,
+    GuildScheduledEventEntityType
 } = require("discord.js");
 const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
 const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
@@ -43,8 +45,9 @@ try {
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildScheduledEvents,
     ];
-    const partials = [Partials.Message, Partials.Channel, Partials.Reaction];
+    const partials = [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildScheduledEvent];
 
     const client = new Client({ intents, partials }); const geminiChat = new GeminiChat(geminiApiKey);
     geminiChat.init();
@@ -121,7 +124,7 @@ try {
                     commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
                     if (message.author.id === discordOwnerId) {
-                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`";
+                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
@@ -912,6 +915,98 @@ try {
                         await safeSendMessage(message.channel, "❌ Error saving conversations.", { fallbackUser: message.author });
                     }
                 }
+
+                // Manual calendar sync command (admin only)
+                if (message.content === "!sync_calendar" && message.author.id === discordOwnerId) {
+                    if (!calendarHelper) {
+                        await message.channel.send("❌ Google Calendar is not configured.");
+                        return;
+                    }
+
+                    try {
+                        await message.channel.send("🔄 Starting manual calendar sync...");
+
+                        const guild = message.guild;
+                        if (!guild) {
+                            await message.channel.send("❌ This command must be used in a server.");
+                            return;
+                        }
+
+                        // Check permissions
+                        const botMember = guild.members.me;
+                        if (!botMember || !botMember.permissions.has('ManageEvents')) {
+                            await message.channel.send("❌ Bot doesn't have 'Manage Events' permission.");
+                            return;
+                        }
+
+                        // Get calendar events
+                        const calendarResult = await calendarHelper.getUpcomingEvents(15);
+                        if (!calendarResult.success) {
+                            await message.channel.send(`❌ Failed to fetch calendar events: ${calendarResult.error}`);
+                            return;
+                        }
+
+                        // Get Discord events
+                        const discordEvents = await guild.scheduledEvents.fetch();
+
+                        await message.channel.send(`📊 **Sync Status:**\n• Calendar events (next 15 days): ${calendarResult.events.length}\n• Discord scheduled events: ${discordEvents.size}\n\nSyncing...`);
+
+                        // Run the sync
+                        await syncCalendarToDiscord(guild);
+
+                        await message.channel.send("✅ Calendar sync completed! Check console for details.");
+                    } catch (error) {
+                        console.error("Error in !sync_calendar command:", error);
+                        await message.channel.send(`❌ Error during sync: ${error.message}`);
+                    }
+                }
+
+                // List calendar events command (admin only)
+                if (message.content === "!list_calendar" && message.author.id === discordOwnerId) {
+                    if (!calendarHelper) {
+                        await message.channel.send("❌ Google Calendar is not configured.");
+                        return;
+                    }
+
+                    try {
+                        const calendarResult = await calendarHelper.getUpcomingEvents(15);
+                        if (!calendarResult.success) {
+                            await message.channel.send(`❌ Failed to fetch calendar events: ${calendarResult.error}`);
+                            return;
+                        }
+
+                        if (calendarResult.events.length === 0) {
+                            await message.channel.send("📅 No upcoming events in the next 15 days.");
+                            return;
+                        }
+
+                        let eventList = "📅 **Upcoming Calendar Events (next 15 days):**\n\n";
+                        for (const event of calendarResult.events.slice(0, 15)) {
+                            const startTime = new Date(event.start.dateTime || event.start.date);
+                            const formattedDate = startTime.toLocaleDateString('pt-PT', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+                            eventList += `• **${event.summary}**\n  📆 ${formattedDate}\n  🆔 ${event.id}\n\n`;
+                        }
+
+                        if (eventList.length > 2000) {
+                            const chunks = eventList.match(/.{1,1900}/g) || [eventList];
+                            for (const chunk of chunks) {
+                                await message.channel.send(chunk);
+                            }
+                        } else {
+                            await message.channel.send(eventList);
+                        }
+                    } catch (error) {
+                        console.error("Error in !list_calendar command:", error);
+                        await message.channel.send(`❌ Error: ${error.message}`);
+                    }
+                }
+
             }
 
             if (message.content === "!commands") {
@@ -1556,7 +1651,6 @@ try {
                     await message.channel.send("❌ An error occurred while trying to leave the server.");
                 }
             }
-
         } catch (globalError) {
             console.error('Global error in message handler:', globalError);
 
@@ -1911,6 +2005,182 @@ try {
         }
     };
 
+    // ==================== CALENDAR TO DISCORD EVENTS SYNC ====================
+    
+    // Map to track synced events: Google Calendar ID -> Discord Event ID
+    const syncedEventsMap = new Map();
+    
+    /**
+     * Generate a unique identifier for matching events
+     * Uses title + start time to create a consistent identifier
+     */
+    const generateEventIdentifier = (title, startTime) => {
+        const normalizedTitle = title.toLowerCase().trim();
+        const timeStamp = new Date(startTime).getTime();
+        return `${normalizedTitle}_${timeStamp}`;
+    };
+
+    /**
+     * Extract Google Calendar Event ID from Discord event description
+     */
+    const extractCalendarIdFromDescription = (description) => {
+        if (!description) return null;
+        const match = description.match(/\[CalendarID:([^\]]+)\]/);
+        return match ? match[1] : null;
+    };
+
+    /**
+     * Sync Google Calendar events to Discord Scheduled Events
+     */
+    const syncCalendarToDiscord = async (guild) => {
+        if (!calendarHelper) {
+            console.log('Calendar helper not initialized, skipping sync');
+            return;
+        }
+
+        try {
+            console.log(`Starting calendar sync for guild: ${guild.name}`);
+
+            // Get events from Google Calendar (next 15 days)
+            const calendarResult = await calendarHelper.getUpcomingEvents(15);
+            
+            if (!calendarResult.success) {
+                console.error('Failed to fetch calendar events:', calendarResult.error);
+                return;
+            }
+
+            const calendarEvents = calendarResult.events;
+            console.log(`Found ${calendarEvents.length} events in Google Calendar`);
+
+            // Get existing Discord scheduled events
+            const discordEvents = await guild.scheduledEvents.fetch();
+            console.log(`Found ${discordEvents.size} events in Discord`);
+
+            // Create a map of Discord events by their Calendar ID (stored in description)
+            const discordEventsByCalendarId = new Map();
+            const discordEventsWithoutCalendarId = [];
+            
+            discordEvents.forEach(event => {
+                const calendarId = extractCalendarIdFromDescription(event.description);
+                if (calendarId) {
+                    discordEventsByCalendarId.set(calendarId, event);
+                } else {
+                    discordEventsWithoutCalendarId.push(event);
+                }
+            });
+
+            // Track which calendar events we've processed
+            const processedCalendarIds = new Set();
+
+            // Process each calendar event
+            for (const calEvent of calendarEvents) {
+                processedCalendarIds.add(calEvent.id);
+
+                const startTime = new Date(calEvent.start.dateTime || calEvent.start.date);
+                const endTime = new Date(calEvent.end.dateTime || calEvent.end.date);
+                
+                // Skip events that have already ended
+                if (endTime < new Date()) {
+                    continue;
+                }
+
+                // Skip events starting in less than 1 minute (Discord requires at least 1 minute in the future)
+                if (startTime < new Date(Date.now() + 60000)) {
+                    continue;
+                }
+
+                const eventDescription = `${calEvent.description || 'No description'}\n\n[CalendarID:${calEvent.id}]`;
+                
+                // Check if this event already exists in Discord
+                const existingDiscordEvent = discordEventsByCalendarId.get(calEvent.id);
+
+                if (existingDiscordEvent) {
+                    // Event exists - check if it needs updating
+                    const needsUpdate = 
+                        existingDiscordEvent.name !== calEvent.summary ||
+                        existingDiscordEvent.scheduledStartAt.getTime() !== startTime.getTime() ||
+                        existingDiscordEvent.scheduledEndAt?.getTime() !== endTime.getTime();
+
+                    if (needsUpdate) {
+                        try {
+                            await existingDiscordEvent.edit({
+                                name: calEvent.summary,
+                                scheduledStartTime: startTime.toISOString(),
+                                scheduledEndTime: endTime.toISOString(),
+                                description: eventDescription
+                            });
+                            console.log(`Updated Discord event: ${calEvent.summary}`);
+                        } catch (updateError) {
+                            console.error(`Failed to update event ${calEvent.summary}:`, updateError.message);
+                        }
+                    }
+                } else {
+                    // Event doesn't exist - create it
+                    try {
+                        const newEvent = await guild.scheduledEvents.create({
+                            name: calEvent.summary,
+                            scheduledStartTime: startTime.toISOString(),
+                            scheduledEndTime: endTime.toISOString(),
+                            privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+                            entityType: GuildScheduledEventEntityType.External,
+                            entityMetadata: {
+                                location: calEvent.location || 'Discord'
+                            },
+                            description: eventDescription
+                        });
+                        console.log(`Created Discord event: ${calEvent.summary}`);
+                        syncedEventsMap.set(calEvent.id, newEvent.id);
+                    } catch (createError) {
+                        console.error(`Failed to create event ${calEvent.summary}:`, createError.message);
+                    }
+                }
+            }
+
+            // Delete Discord events that no longer exist in Calendar
+            for (const [calendarId, discordEvent] of discordEventsByCalendarId) {
+                if (!processedCalendarIds.has(calendarId)) {
+                    // This event was deleted from Calendar - delete from Discord too
+                    try {
+                        await discordEvent.delete();
+                        console.log(`Deleted Discord event (removed from calendar): ${discordEvent.name}`);
+                        syncedEventsMap.delete(calendarId);
+                    } catch (deleteError) {
+                        console.error(`Failed to delete event ${discordEvent.name}:`, deleteError.message);
+                    }
+                }
+            }
+
+            console.log(`Calendar sync completed for guild: ${guild.name}`);
+
+        } catch (error) {
+            console.error('Error during calendar sync:', error);
+            await sendErrorToMonitoring('Calendar Sync Error', error);
+        }
+    };
+
+    /**
+     * Run sync for all guilds the bot is in
+     */
+    const syncAllGuilds = async () => {
+        console.log('Starting calendar sync for all guilds...');
+        
+        for (const [guildId, guild] of client.guilds.cache) {
+            try {
+                // Check if bot has permission to manage events
+                const botMember = guild.members.me;
+                if (botMember && botMember.permissions.has('ManageEvents')) {
+                    await syncCalendarToDiscord(guild);
+                } else {
+                    console.log(`Skipping guild ${guild.name} - missing ManageEvents permission`);
+                }
+            } catch (error) {
+                console.error(`Error syncing guild ${guild.name}:`, error);
+            }
+        }
+        
+        console.log('Calendar sync completed for all guilds');
+    };
+
     // Start monitoring when bot is ready
     client.once(Events.ClientReady, async () => {
         console.log(`Bot is ready! Logged in as ${client.user.tag}`);
@@ -1940,6 +2210,27 @@ try {
         
         // Send first status after 5 seconds
         setTimeout(sendStatusUpdate, 5000);
+
+        // ==================== START CALENDAR SYNC ====================
+        if (calendarHelper) {
+            console.log('Starting Calendar to Discord Events sync system...');
+            
+            // Run first sync after 60 seconds (give time for everything to initialize)
+            setTimeout(async () => {
+                console.log('Running initial calendar sync...');
+                await syncAllGuilds();
+            }, 60000);
+            
+            // Then sync every 10 minutes (600000 ms)
+            setInterval(async () => {
+                console.log('Running scheduled calendar sync...');
+                await syncAllGuilds();
+            }, 600000);
+            
+            console.log('Calendar sync scheduled: every 10 minutes');
+        } else {
+            console.log('Calendar helper not available - sync disabled');
+        }
     });
 
     const gracefulShutdown = async () => {

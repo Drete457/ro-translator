@@ -13,6 +13,115 @@ class GoogleCalendarHelper {
     }
 
     /**
+     * Get upcoming events from the calendar
+     * @param {number} daysAhead - Number of days to look ahead
+     * @returns {Promise<Array>} Array of events
+     */
+    async getUpcomingEvents(daysAhead = 15) {
+        try {
+            const now = new Date();
+            const futureDate = new Date();
+            futureDate.setDate(futureDate.getDate() + daysAhead);
+
+            const response = await this.calendar.events.list({
+                calendarId: this.calendarId,
+                timeMin: now.toISOString(),
+                timeMax: futureDate.toISOString(),
+                singleEvents: true,
+                orderBy: 'startTime'
+            });
+
+            return {
+                success: true,
+                events: response.data.items || []
+            };
+        } catch (error) {
+            console.error('Error fetching calendar events:', error);
+            return {
+                success: false,
+                error: error.message,
+                events: []
+            };
+        }
+    }
+
+    /**
+     * Get a specific event by ID
+     * @param {string} eventId - The event ID
+     * @returns {Promise<Object>} Event object
+     */
+    async getEvent(eventId) {
+        try {
+            const response = await this.calendar.events.get({
+                calendarId: this.calendarId,
+                eventId: eventId
+            });
+
+            return {
+                success: true,
+                event: response.data
+            };
+        } catch (error) {
+            console.error('Error fetching event:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Delete an event by ID
+     * @param {string} eventId - The event ID
+     * @returns {Promise<Object>} Result object
+     */
+    async deleteEvent(eventId) {
+        try {
+            await this.calendar.events.delete({
+                calendarId: this.calendarId,
+                eventId: eventId
+            });
+
+            return {
+                success: true
+            };
+        } catch (error) {
+            console.error('Error deleting event:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Update an event
+     * @param {string} eventId - The event ID
+     * @param {Object} updates - The updates to apply
+     * @returns {Promise<Object>} Result object
+     */
+    async updateEvent(eventId, updates) {
+        try {
+            const response = await this.calendar.events.patch({
+                calendarId: this.calendarId,
+                eventId: eventId,
+                resource: updates
+            });
+
+            return {
+                success: true,
+                event: response.data
+            };
+        } catch (error) {
+            console.error('Error updating event:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Create a new calendar event
      * @param {string} title - Event title
      * @param {Date} startDate - Event start date
@@ -188,12 +297,12 @@ class GoogleCalendarHelper {
     async createGameEvent(eventType, dateStr, timeStr, durationStr = 1, additionalInfo = '') {
         const eventTypes = {
             'war': {
-                title: '⚔️ ICE Clan War',
-                description: 'ICE Clan war event. All active members should participate!'
+                title: '⚔️ FTS Clan War',
+                description: 'FTS Clan war event. All active members should participate!'
             },
             'rally': {
                 title: '🏰 Rally Event',
-                description: 'Rally event for ICE Clan. Join the rally and help the clan!'
+                description: 'Rally event for FTS Clan. Join the rally and help the clan!'
             },
             'kvk': {
                 title: '👑 Kingdom vs Kingdom',
@@ -205,17 +314,17 @@ class GoogleCalendarHelper {
             },
             'meeting': {
                 title: '🗣️ Leadership Meeting',
-                description: 'ICE Clan leadership meeting.'
+                description: 'FTS Clan leadership meeting.'
             },
             'custom': {
                 title: '📅 Custom Event',
-                description: 'Custom event for ICE Clan.'
+                description: 'Custom event for FTS Clan.'
             }
         };
 
         const eventConfig = eventTypes[eventType.toLowerCase()] || {
             title: `🎮 ${eventType}`,
-            description: `ICE Clan ${eventType} event`
+            description: `FTS Clan ${eventType} event`
         };
 
         // For custom events, use the additional info as the title if provided
