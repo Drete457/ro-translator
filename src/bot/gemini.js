@@ -6,14 +6,13 @@ const fetch = require('node-fetch');
 class GeminiChat {
     constructor(apiKey) {
         this.genAI = new GoogleGenerativeAI(apiKey);
-        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-
+        
         this.conversations = new Map();
         this.isActive = false;
         this.conversationsFile = path.join(__dirname, 'conversations.json');
         this.lastSaveTime = Date.now();
         this.saveInterval = 30000;
-
+        
         this.systemPrompt = `You are Leroy Jenkins, a specialized assistant for leaders of the FTS clan in the Call of Dragons game. 
         Your function is to help leaders with strategies, attack coordination, resource management, and any clan-related matters.
         
@@ -39,6 +38,11 @@ class GeminiChat {
         When appropriate, use these Discord features to make your responses more engaging and interactive.
         Always respond in English and maintain context from previous conversations.
         If you don't know something specific about Call of Dragons, be honest and offer general leadership help.`;
+
+        this.model = this.genAI.getGenerativeModel({
+            model: "gemini-2.5-flash-lite",
+            systemInstruction: this.systemPrompt 
+        });
     }
 
     async init () {
@@ -110,7 +114,6 @@ class GeminiChat {
 
             const chat = this.model.startChat({
                 history: history,
-                systemInstruction: this.systemPrompt,
                 generationConfig: {
                     maxOutputTokens: 4096,
                     temperature: 0.7,
@@ -287,11 +290,13 @@ class GeminiChat {
                 return "Sorry, I couldn't process the images. Please try uploading them again.";
             }
 
-            const visionModel = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+            const visionModel = this.genAI.getGenerativeModel({
+                model: "gemini-2.5-flash-lite",
+                systemInstruction: this.systemPrompt 
+            });
 
             const chat = visionModel.startChat({
                 history: history,
-                systemInstruction: this.systemPrompt,
                 generationConfig: {
                     maxOutputTokens: 4096,
                     temperature: 0.7,
