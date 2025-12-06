@@ -1935,8 +1935,8 @@ try {
             console.error('Error sending startup message:', error);
         }
 
-        // Start status update interval (every 5 minute)
-        setInterval(sendStatusUpdate, 300000);
+        // Start status update interval (every 60 minute)
+        setInterval(sendStatusUpdate, 3600000);
         
         // Send first status after 5 seconds
         setTimeout(sendStatusUpdate, 5000);
