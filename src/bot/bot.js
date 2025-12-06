@@ -31,7 +31,7 @@ try {
     const GoogleCalendarHelper = require("./helpers/google-calendar");
     const translate = require("google-translate-api-x");
     const fetch = require("node-fetch");
-    const { discordToken, channelWithImage, channelData, channelDataTest, geminiApiKey, googleClientEmail, googlePrivateKey, googleCalendarId, discordOwnerId } = require("./env-variables");
+    const { discordToken, channelWithImage, channelData, channelDataTest, channelStatus, geminiApiKey, googleClientEmail, googlePrivateKey, googleCalendarId, discordOwnerId } = require("./env-variables");
     const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
     const { richMessage } = require('./discord-custom-messages');
     const countries = require("./countries");
@@ -1882,7 +1882,6 @@ try {
     }
 
     // ==================== BOT MONITORING SYSTEM ====================
-    const monitoringChannelId = '1444769762419671104';
     const botStartTime = Date.now();
     let statusMessageCount = 0;
 
@@ -1974,9 +1973,9 @@ try {
     // Function to send status update
     const sendStatusUpdate = async () => {
         try {
-            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            const monitoringChannel = client.channels.cache.get(channelStatus);
             if (!monitoringChannel) {
-                console.log('Monitoring channel not found:', monitoringChannelId);
+                console.log('Monitoring channel not found:', channelStatus);
                 return;
             }
 
