@@ -2291,6 +2291,11 @@ try {
     process.on('SIGINT', gracefulShutdown);
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGUSR2', gracefulShutdown);
+    
+    // Windows-specific: handle when the terminal window is closed
+    if (process.platform === 'win32') {
+        process.on('SIGHUP', gracefulShutdown);
+    }
 
     process.on('uncaughtException', async (error) => {
         console.error('Uncaught Exception:', error);

@@ -54,13 +54,13 @@ class GeminiChat {
             await testChat.sendMessage("test");
             this.isActive = true;
             console.log("Gemini AI initialized successfully");
-            
-            // Start auto-save interval
-            this.startAutoSave();
         } catch (error) {
             console.error("Error initializing Gemini AI:", error);
             this.isActive = false;
         }
+        
+        // Always start auto-save, even if Gemini init fails
+        this.startAutoSave();
     }
 
     startAutoSave() {
@@ -210,7 +210,9 @@ class GeminiChat {
     autoSaveConversations() {
         const now = Date.now();
         if (now - this.lastSaveTime >= this.saveInterval) {
-            this.saveConversations();
+            if (this.conversations.size > 0) {
+                this.saveConversations();
+            }
         }
     }
 
