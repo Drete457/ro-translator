@@ -6,6 +6,7 @@ const channelWithImage = process.env.discord_channel_with_image;
 const channelDataTest = process.env.discord_channel_data_test;
 const channelData = process.env.discord_channel_data;
 const channelStatus = process.env.discord_channel_status;
+const channelAllianceChat = process.env.discord_channel_alliance_chat;
 const ocrSpaceApiKey = process.env.ocr_space_api_key;
 const googleSheetId = process.env.google_sheet_id;
 const googleClientEmail = process.env.google_client_email;
