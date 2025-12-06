@@ -35,6 +35,7 @@ try {
     const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
     const { richMessage } = require('./discord-custom-messages');
     const countries = require("./countries");
+    const { AllianceEntertainment } = require('./helpers/alliance-entertainment');
 
     const isInDevelopment = process.env.NODE_ENV === "development";
 
@@ -63,6 +64,9 @@ try {
     } else {
         console.log("Google Calendar credentials not configured - calendar commands will be disabled");
     }
+
+    // Alliance Entertainment instance (will be initialized after client is ready)
+    let allianceEntertainment = null;
 
     client.on(Events.MessageCreate, async (message) => {
         try {
@@ -124,7 +128,7 @@ try {
                     commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
                     if (message.author.id === discordOwnerId) {
-                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`";
+                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`, `!send_meme`";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
@@ -1007,6 +1011,22 @@ try {
                     }
                 }
 
+                // Manual trigger for alliance entertainment (admin only)
+                if (message.content === "!send_meme" && message.author.id === discordOwnerId) {
+                    if (!allianceEntertainment) {
+                        await message.channel.send("❌ Alliance entertainment is not configured.");
+                        return;
+                    }
+
+                    try {
+                        await message.channel.send("🎮 Sending random content to alliance chat...");
+                        await allianceEntertainment.triggerNow();
+                        await message.channel.send("✅ Content sent! Check the alliance chat channel.");
+                    } catch (error) {
+                        console.error("Error in !send_meme command:", error);
+                        await message.channel.send(`❌ Error: ${error.message}`);
+                    }
+                }
             }
 
             if (message.content === "!commands") {
@@ -1951,7 +1971,7 @@ try {
     // Function to send error to monitoring channel
     const sendErrorToMonitoring = async (errorType, error) => {
         try {
-            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            const monitoringChannel = client.channels.cache.get(channelStatus);
             if (!monitoringChannel) return;
 
             const errorEmbed = new EmbedBuilder()
@@ -2186,7 +2206,7 @@ try {
         
         // Send initial startup message
         try {
-            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            const monitoringChannel = client.channels.cache.get(channelStatus);
             if (monitoringChannel) {
                 const startupEmbed = new EmbedBuilder()
                     .setTitle('🚀 Bot Started')
@@ -2230,6 +2250,14 @@ try {
         } else {
             console.log('Calendar helper not available - sync disabled');
         }
+
+        // ==================== START ALLIANCE CHAT ENTERTAINMENT ====================
+        if (channelAllianceChat) {
+            allianceEntertainment = new AllianceEntertainment(client, channelAllianceChat);
+            allianceEntertainment.start(1800000); // Start with 30 min delay
+        } else {
+            console.log('Alliance chat channel not configured - entertainment disabled');
+        }
     });
 
     const gracefulShutdown = async () => {
@@ -2237,7 +2265,7 @@ try {
         
         // Send shutdown message to monitoring channel
         try {
-            const monitoringChannel = client.channels.cache.get(monitoringChannelId);
+            const monitoringChannel = client.channels.cache.get(channelStatus);
             if (monitoringChannel) {
                 const shutdownEmbed = new EmbedBuilder()
                     .setTitle('⚠️ Bot Shutting Down')

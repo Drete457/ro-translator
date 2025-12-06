@@ -23,6 +23,7 @@ module.exports = {
     channelDataTest, 
     channelData, 
     channelStatus,
+    channelAllianceChat,
     ocrSpaceApiKey, 
     googleSheetId, 
     googleClientEmail, 
