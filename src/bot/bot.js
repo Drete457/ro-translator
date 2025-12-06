@@ -1546,40 +1546,73 @@ try {
                 try {
                     await message.channel.sendTyping();
 
-                    const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+                    // Fetch up to 100 messages first to determine activity level
                     const messages = await message.channel.messages.fetch({ limit: 100 });
-
-                    const recentMessages = messages
-                        .filter(msg =>
-                            msg.createdAt > eightHoursAgo &&
-                            !msg.author.bot &&
-                            !msg.content.startsWith('!') &&
-                            msg.content.length > 0 &&
-                            msg.content.length < 500
-                        )
-                        .map(msg => ({
-                            author: msg.author.username,
-                            content: msg.content,
-                            timestamp: msg.createdAt
-                        }))
-                        .reverse()
-                        .slice(0, 30);
+                    
+                    // Try different time windows based on message activity
+                    const timeWindows = [
+                        { hours: 8, label: '8 hours' },
+                        { hours: 12, label: '12 hours' },
+                        { hours: 24, label: '24 hours' },
+                        { hours: 48, label: '48 hours' }
+                    ];
+                    
+                    let selectedWindow = timeWindows[0];
+                    let recentMessages = [];
+                    
+                    // Find the best time window that has enough messages
+                    for (const window of timeWindows) {
+                        const cutoffTime = new Date(Date.now() - window.hours * 60 * 60 * 1000);
+                        
+                        const windowMessages = messages
+                            .filter(msg =>
+                                msg.createdAt > cutoffTime &&
+                                !msg.author.bot &&
+                                !msg.content.startsWith('!') &&
+                                msg.content.length > 0 &&
+                                msg.content.length < 1000  // Increased limit for Gemini 2.5
+                            )
+                            .map(msg => ({
+                                author: msg.author.username,
+                                content: msg.content,
+                                timestamp: msg.createdAt
+                            }))
+                            .reverse();
+                        
+                        // If we have at least 10 messages, use this window
+                        if (windowMessages.length >= 10) {
+                            selectedWindow = window;
+                            recentMessages = windowMessages.slice(0, 50);  // Increased to 50 messages for Gemini 2.5
+                            break;
+                        }
+                        
+                        // If this is a larger window with more messages, keep it as fallback
+                        if (windowMessages.length > recentMessages.length) {
+                            selectedWindow = window;
+                            recentMessages = windowMessages.slice(0, 50);
+                        }
+                    }
 
                     if (recentMessages.length === 0) {
-                        await message.channel.send("There are not enough messages from the last 8 hours to create a summary.");
+                        await message.channel.send("There are not enough messages from the last 48 hours to create a summary.");
                         return;
                     }
 
+                    // Show typing indicator again for longer processing
+                    await message.channel.sendTyping();
+                    
                     const summary = await geminiChat.summarizeMessages(recentMessages);
 
-                    if (summary.length > 2000) {
+                    const headerText = `**📋 Summary of the last ${selectedWindow.label}** (${recentMessages.length} messages):\n\n`;
+
+                    if ((headerText + summary).length > 2000) {
                         const chunks = summary.match(/.{1,1900}/g) || [summary];
                         for (let i = 0; i < chunks.length; i++) {
-                            const prefix = i === 0 ? "**📋 Summary of the last 8 hours:**\n\n" : "";
+                            const prefix = i === 0 ? headerText : "";
                             await message.channel.send(prefix + chunks[i]);
                         }
                     } else {
-                        await message.channel.send(`**📋 Summary of the last 8 hours:**\n\n${summary}`);
+                        await message.channel.send(headerText + summary);
                     }
                 } catch (error) {
                     console.error("Error in !resume command:", error);
