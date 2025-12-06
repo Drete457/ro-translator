@@ -144,7 +144,7 @@ class GeminiChat {
                 `${msg.author}: ${msg.content}`
             ).join('\n');
 
-            const prompt = `Act as Leroy Jenkins, the specialized FTS clan assistant. Create a concise and organized summary of the following messages from the last 8 hours. 
+            const prompt = `Act as Leroy Jenkins, the specialized FTS clan assistant. Create a concise and organized summary of the following chat messages. 
             Focus ONLY on the most important points related to the clan, strategies, coordination, or important decisions. Use Discord markdown and relevant emojis:
 
             MESSAGES:
@@ -154,7 +154,7 @@ class GeminiChat {
 
             const result = await this.model.generateContent({
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
-                config: {
+                generationConfig: {
                     maxOutputTokens: 4096,
                     temperature: 0.4,
                     topK: 30,
@@ -162,7 +162,7 @@ class GeminiChat {
                 }
             });
 
-            return result.response.text;
+            return result.response.text();
         } catch (error) {
             console.error("Error summarizing messages:", error);
             return "Sorry, an error occurred while creating the summary. Please try again.";
