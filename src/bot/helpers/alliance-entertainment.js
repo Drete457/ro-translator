@@ -185,8 +185,8 @@ const getAllianceChatContent = async () => {
 
 // Function to get random interval between 2-3 hours (in milliseconds)
 const getRandomInterval = () => {
-    const minHours = 2;
-    const maxHours = 3;
+    const minHours = 10;
+    const maxHours = 14;
     const randomHours = minHours + Math.random() * (maxHours - minHours);
     return randomHours * 60 * 60 * 1000; // Convert to milliseconds
 };
@@ -254,7 +254,7 @@ class AllianceEntertainment {
         
         this.isRunning = true;
         console.log('Starting Alliance Chat Entertainment system...');
-        console.log('Alliance chat entertainment scheduled: every 2-3 hours');
+        console.log('Alliance chat entertainment scheduled: every 10-14 hours');
         
         // Send first message after initial delay
         setTimeout(async () => {
