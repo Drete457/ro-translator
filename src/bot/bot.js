@@ -2049,7 +2049,7 @@ try {
                     { name: '🔧 System Info', value: `Platform: ${stats.platform}\nNode.js: ${stats.nodeVersion}`, inline: false },
                     { name: '📈 Bot Stats', value: `Servers: ${client.guilds.cache.size}\nActive Countdowns: ${activeCountdowns.size}\nPending Translations: ${pendingTranslations.size}\nConversations: ${geminiChat.conversations?.size || 0}`, inline: false }
                 )
-                .setFooter({ text: 'Next update in 4 hours' });
+                .setFooter({ text: 'Next update in 24 hours' });
 
             await monitoringChannel.send({ embeds: [statusEmbed] });
         } catch (error) {
@@ -2061,16 +2061,6 @@ try {
     
     // Map to track synced events: Google Calendar ID -> Discord Event ID
     const syncedEventsMap = new Map();
-    
-    /**
-     * Generate a unique identifier for matching events
-     * Uses title + start time to create a consistent identifier
-     */
-    const generateEventIdentifier = (title, startTime) => {
-        const normalizedTitle = title.toLowerCase().trim();
-        const timeStamp = new Date(startTime).getTime();
-        return `${normalizedTitle}_${timeStamp}`;
-    };
 
     /**
      * Extract Google Calendar Event ID from Discord event description
@@ -2257,8 +2247,8 @@ try {
             console.error('Error sending startup message:', error);
         }
 
-        // Start status update interval (every 4 hours)
-        setInterval(sendStatusUpdate, 14400000);
+        // Start status update interval (every 24 hours)
+        setInterval(sendStatusUpdate, 86400000);
         
         // Send first status after 5 seconds
         setTimeout(sendStatusUpdate, 5000);
