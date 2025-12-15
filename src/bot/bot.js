@@ -928,8 +928,6 @@ try {
                     }
 
                     try {
-                        await message.channel.send("🔄 Starting manual calendar sync...");
-
                         const guild = message.guild;
                         if (!guild) {
                             await message.channel.send("❌ This command must be used in a server.");
@@ -939,29 +937,49 @@ try {
                         // Check permissions
                         const botMember = guild.members.me;
                         if (!botMember || !botMember.permissions.has('ManageEvents')) {
-                            await message.channel.send("❌ Bot doesn't have 'Manage Events' permission.");
+                            await message.channel.send(`❌ **Missing Permissions**\n\nThe bot needs the \`Manage Events\` permission in **${guild.name}** to sync calendar events.\n\nPlease grant this permission and try again.`);
                             return;
                         }
+
+                        const statusMsg = await message.channel.send(`🔄 **Synchronizing Calendar**\n\n📍 Server: **${guild.name}**\n⏳ Fetching events from Google Calendar...`);
 
                         // Get calendar events
                         const calendarResult = await calendarHelper.getUpcomingEvents(15);
                         if (!calendarResult.success) {
-                            await message.channel.send(`❌ Failed to fetch calendar events: ${calendarResult.error}`);
+                            await statusMsg.edit(`❌ **Sync Failed**\n\nFailed to fetch calendar events: ${calendarResult.error}`);
                             return;
                         }
 
-                        // Get Discord events
-                        const discordEvents = await guild.scheduledEvents.fetch();
+                        // Get Discord events before sync
+                        const discordEventsBefore = await guild.scheduledEvents.fetch();
 
-                        await message.channel.send(`📊 **Sync Status:**\n• Calendar events (next 15 days): ${calendarResult.events.length}\n• Discord scheduled events: ${discordEvents.size}\n\nSyncing...`);
+                        await statusMsg.edit(`🔄 **Synchronizing Calendar**\n\n📍 Server: **${guild.name}**\n📅 Calendar events found: **${calendarResult.events.length}**\n📊 Discord events before sync: **${discordEventsBefore.size}**\n\n⏳ Processing...`);
 
                         // Run the sync
                         await syncCalendarToDiscord(guild);
 
-                        await message.channel.send("✅ Calendar sync completed! Check console for details.");
+                        // Get Discord events after sync
+                        const discordEventsAfter = await guild.scheduledEvents.fetch();
+                        const eventsCreated = Math.max(0, discordEventsAfter.size - discordEventsBefore.size);
+                        const eventsDeleted = Math.max(0, discordEventsBefore.size - discordEventsAfter.size);
+
+                        let resultMessage = `✅ **Calendar Sync Complete**\n\n`;
+                        resultMessage += `📍 Server: **${guild.name}**\n`;
+                        resultMessage += `📅 Calendar events (next 15 days): **${calendarResult.events.length}**\n`;
+                        resultMessage += `📊 Discord events: **${discordEventsAfter.size}**\n\n`;
+                        
+                        if (eventsCreated > 0 || eventsDeleted > 0) {
+                            resultMessage += `📝 **Changes:**\n`;
+                            if (eventsCreated > 0) resultMessage += `• Created: **${eventsCreated}** event(s)\n`;
+                            if (eventsDeleted > 0) resultMessage += `• Deleted: **${eventsDeleted}** event(s)\n`;
+                        } else {
+                            resultMessage += `ℹ️ No changes needed - events are already in sync.`;
+                        }
+
+                        await statusMsg.edit(resultMessage);
                     } catch (error) {
                         console.error("Error in !sync_calendar command:", error);
-                        await message.channel.send(`❌ Error during sync: ${error.message}`);
+                        await message.channel.send(`❌ **Sync Error**\n\nAn error occurred: ${error.message}`);
                     }
                 }
 
