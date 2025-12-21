@@ -75,15 +75,15 @@ const staticContent = [
     { type: 'question', content: '🤔 **Question of the day:** Night owl gamer or early bird? When do you usually play? 🦉🐦' },
     
     // Alliance Spirit
-    { type: 'spirit', content: '🔥 **ICE CLAN STRONG!** Remember: Together we conquer, divided we fall! Let\'s dominate! 💪❄️' },
-    { type: 'spirit', content: '❄️ **ICE runs through our veins!** Who\'s ready for the next battle? React if you\'re online! 🙋' },
+    { type: 'spirit', content: '🔥 **FTS CLAN STRONG!** Remember: Together we conquer, divided we fall! Let\'s dominate! 💪❄️' },
+    { type: 'spirit', content: '❄️ **FTS runs through our veins!** Who\'s ready for the next battle? React if you\'re online! 🙋' },
     { type: 'spirit', content: '⚔️ **Rally time soon?** Tag your favorite rally leader and let them know you\'re ready! 🏰' },
-    { type: 'spirit', content: '🌟 **Shoutout to our active members!** Your dedication makes ICE Clan the best! 🏆' },
+    { type: 'spirit', content: '🌟 **Shoutout to our active members!** Your dedication makes FTS Clan the best! 🏆' },
     { type: 'spirit', content: '💪 **Reminder:** Help your alliance members with constructions and research! Every bit helps! 🔨' },
-    { type: 'spirit', content: '❄️ **ICE never melts under pressure!** Keep pushing, keep growing! 📈' },
+    { type: 'spirit', content: '❄️ **FTS never melts under pressure!** Keep pushing, keep growing! 📈' },
     { type: 'spirit', content: '🏆 **Victory is sweeter when shared!** Great job on recent battles, everyone! 🎉' },
-    { type: 'spirit', content: '💎 **Quality over quantity!** ICE Clan - small but mighty! 💪' },
-    { type: 'spirit', content: '🌐 **From all corners of the world, united under ICE!** That\'s what makes us special! 🤝' },
+    { type: 'spirit', content: '💎 **Quality over quantity!** FTS Clan - small but mighty! 💪' },
+    { type: 'spirit', content: '🌐 **From all corners of the world, united under FTS!** That\'s what makes us special! 🤝' },
     { type: 'spirit', content: '⚡ **Energy check!** How\'s everyone doing today? Drop an emoji to show your mood! 😊😴🔥' }
 ];
 
