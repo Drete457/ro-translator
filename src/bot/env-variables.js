@@ -7,6 +7,7 @@ const channelDataTest = process.env.discord_channel_data_test;
 const channelData = process.env.discord_channel_data;
 const channelStatus = process.env.discord_channel_status;
 const channelAllianceChat = process.env.discord_channel_alliance_chat;
+const channelEvent = process.env.discord_event_channel;
 const ocrSpaceApiKey = process.env.ocr_space_api_key;
 const googleSheetId = process.env.google_sheet_id;
 const googleClientEmail = process.env.google_client_email;
@@ -24,6 +25,7 @@ module.exports = {
     channelData, 
     channelStatus,
     channelAllianceChat,
+    channelEvent,
     ocrSpaceApiKey, 
     googleSheetId, 
     googleClientEmail, 

@@ -31,7 +31,7 @@ try {
     const GoogleCalendarHelper = require("./helpers/google-calendar");
     const translate = require("google-translate-api-x");
     const fetch = require("node-fetch");
-    const { discordToken, channelWithImage, channelData, channelDataTest, channelStatus, channelAllianceChat, geminiApiKey, googleClientEmail, googlePrivateKey, googleCalendarId, discordOwnerId } = require("./env-variables");
+    const { discordToken, channelWithImage, channelData, channelDataTest, channelStatus, channelEvent, channelAllianceChat, geminiApiKey, googleClientEmail, googlePrivateKey, googleCalendarId, discordOwnerId } = require("./env-variables");
     const { ocrImageToText, filterResponse, writePlayerInfoToGoogleSheet } = require('./ocr-image-to-text');
     const { richMessage } = require('./discord-custom-messages');
     const countries = require("./countries");
