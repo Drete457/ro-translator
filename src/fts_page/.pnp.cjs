@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable */
+ 
 "use strict";
 
 function $$SETUP_STATE(hydrateRuntimeState, basePath) {
@@ -12,14 +12,14 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
     ],\
     "dependencyTreeRoots": [\
       {\
-        "name": "ice_page",\
+        "name": "fts_page",\
         "reference": "workspace:."\
       }\
     ],\
     "enableTopLevelFallback": true,\
     "ignorePatternData": "(^(?:\\\\.yarn\\\\/sdks(?:\\\\/(?!\\\\.{1,2}(?:\\\\/|$))(?:(?:(?!(?:^|\\\\/)\\\\.{1,2}(?:\\\\/|$)).)*?)|$))$)",\
     "fallbackExclusionList": [\
-      ["ice_page", ["workspace:."]]\
+      ["fts_page", ["workspace:."]]\
     ],\
     "fallbackPool": [\
     ],\
@@ -2741,11 +2741,11 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
           "linkType": "HARD"\
         }]\
       ]],\
-      ["ice_page", [\
+      ["fts_page", [\
         ["workspace:.", {\
           "packageLocation": "./",\
           "packageDependencies": [\
-            ["ice_page", "workspace:."],\
+            ["fts_page", "workspace:."],\
             ["@emotion/react", "virtual:f0e4d52c7029dd6fe80da3ef942f86acd1ddca6c0caa25688254f404126db3d64e8dcc43caae1d3ffcb18cdb771f9152b330b6f2a324c11b731f6fa969487d83#npm:11.14.0"],\
             ["@emotion/styled", "virtual:f0e4d52c7029dd6fe80da3ef942f86acd1ddca6c0caa25688254f404126db3d64e8dcc43caae1d3ffcb18cdb771f9152b330b6f2a324c11b731f6fa969487d83#npm:11.14.0"],\
             ["@eslint/js", "npm:9.22.0"],\
@@ -13850,7 +13850,7 @@ function arg(
 		}
 
 		if (wholeArg.length > 1 && wholeArg[0] === '-') {
-			/* eslint-disable operator-linebreak */
+			 
 			const separatedArguments =
 				wholeArg[1] === '-' || wholeArg.length === 2
 					? [wholeArg]
@@ -13858,7 +13858,7 @@ function arg(
 							.slice(1)
 							.split('')
 							.map((a) => `-${a}`);
-			/* eslint-enable operator-linebreak */
+			 
 
 			for (let j = 0; j < separatedArguments.length; j++) {
 				const arg = separatedArguments[j];
@@ -13901,7 +13901,7 @@ function arg(
 							!(
 								argv[i + 1].match(/^-?\d*(\.(?=\d))?\d*$/) &&
 								(type === Number ||
-									// eslint-disable-next-line no-undef
+									 
 									(typeof BigInt !== 'undefined' && type === BigInt))
 							))
 					) {

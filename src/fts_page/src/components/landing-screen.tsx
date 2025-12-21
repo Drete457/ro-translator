@@ -47,7 +47,7 @@ const LandingScreen: FC<LandingScreenProps> = ({
       }}
     >
       <Typography variant="h4" sx={{ color: 'lightblue', mb: 4 }}>
-        Welcome to Ice Wolves Alliance
+        Welcome to Fury of The Titans Alliance
       </Typography>
       
       <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.8)', mb: 4 }}>
