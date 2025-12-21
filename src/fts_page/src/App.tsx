@@ -151,7 +151,7 @@ const App = () => {
               }}
             />
             <Typography variant="h4" component="h1" sx={{ color: 'white' }}>
-              Ice Wolves Alliance Army Data
+              Fury of The Titans Alliance Army Data
             </Typography>
           </Box>
 
