@@ -1954,7 +1954,9 @@ try {
     }
 
     // ==================== EVENT ANNOUNCEMENTS ====================
-    const attentionTag = '@fts';
+    const attentionTag = '@FTS';
+    const announcementCache = new Map();
+    const ANNOUNCE_TTL_MS = 30 * 60 * 1000; // 30 minutes cooldown per event/phase
 
     const formatEventTimeForDiscord = (date) => {
         if (!date) return 'Date unavailable';
@@ -1970,6 +1972,15 @@ try {
                 console.log('Event announcement channel not found');
                 return;
             }
+
+            // Prevent duplicate announcements for the same event/phase in a short window
+            const cacheKey = `${event.id || event.name}:${phase}`;
+            const now = Date.now();
+            const last = announcementCache.get(cacheKey);
+            if (last && now - last < ANNOUNCE_TTL_MS) {
+                return;
+            }
+            announcementCache.set(cacheKey, now);
 
             const startDate = event.scheduledStartAt || (event.scheduledStartTimestamp ? new Date(event.scheduledStartTimestamp) : null);
             const startText = formatEventTimeForDiscord(startDate);
