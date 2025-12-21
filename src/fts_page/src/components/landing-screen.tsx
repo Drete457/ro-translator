@@ -7,6 +7,8 @@ import {
   Typography,
   CircularProgress,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { alpha } from '@mui/material/styles';
 
 interface LandingScreenProps {
   onSearch: (userId: string) => void;
@@ -21,7 +23,19 @@ const LandingScreen: FC<LandingScreenProps> = ({
   loading,
   error
 }) => {
+  const theme = useTheme();
   const [userId, setUserId] = useState<string>('');
+
+  const fieldStyles = {
+    '& .MuiInputBase-input': { color: theme.palette.text.primary },
+    '& .MuiInputLabel-root': { color: theme.palette.primary.light },
+    '& .MuiOutlinedInput-root': {
+      backgroundColor: alpha(theme.palette.common.white, 0.02),
+      '& fieldset': { borderColor: theme.palette.divider },
+      '&:hover fieldset': { borderColor: theme.palette.primary.main },
+      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
+    }
+  };
 
   const handleSearch = () => {
     if (userId.trim()) {
@@ -43,21 +57,25 @@ const LandingScreen: FC<LandingScreenProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '400px',
-        textAlign: 'center'
+        textAlign: 'center',
+        background: alpha(theme.palette.primary.main, 0.04),
+        borderRadius: 2,
+        border: `1px solid ${theme.palette.divider}`,
+        p: 4
       }}
     >
-      <Typography variant="h4" sx={{ color: 'lightblue', mb: 4 }}>
+      <Typography variant="h4" sx={{ color: theme.palette.text.primary, mb: 4, fontWeight: 800 }}>
         Welcome to Fury of The Titans Alliance
       </Typography>
       
-      <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.8)', mb: 4 }}>
+      <Typography variant="h6" sx={{ color: theme.palette.text.secondary, mb: 4 }}>
         Please choose an option:
       </Typography>
 
       <Stack spacing={4} alignItems="center" sx={{ width: '100%', maxWidth: 400 }}>
         {/* Search existing player section */}
         <Box sx={{ width: '100%' }}>
-          <Typography variant="subtitle1" sx={{ color: 'lightblue', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Existing Player
           </Typography>
           <Stack direction="row" spacing={2} alignItems="center">
@@ -70,30 +88,25 @@ const LandingScreen: FC<LandingScreenProps> = ({
               type="number"
               inputProps={{ min: 0 }}
               disabled={loading}
-              sx={{
-                '& .MuiInputBase-input': { color: 'white' },
-                '& .MuiInputLabel-root': { color: 'lightblue' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                  '&:hover fieldset': { borderColor: 'lightblue' },
-                }
-              }}
+              sx={fieldStyles}
             />
             <Button
               variant="contained"
               onClick={handleSearch}
               disabled={loading || !userId.trim()}
               sx={{
-                backgroundColor: '#1976d2',
-                color: 'white',
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
                 fontWeight: 'bold',
                 minWidth: 120,
+                boxShadow: 'none',
                 '&:hover': {
-                  backgroundColor: '#115293'
+                  backgroundColor: theme.palette.primary.dark,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)'
                 },
                 '&:disabled': {
-                  backgroundColor: '#e2e8f0',
-                  color: '#64748b',
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  color: theme.palette.text.disabled,
                   fontWeight: 'bold'
                 }
               }}
@@ -104,13 +117,13 @@ const LandingScreen: FC<LandingScreenProps> = ({
         </Box>
 
         {/* Divider */}
-        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+        <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
           OR
         </Typography>
 
         {/* New player section */}
         <Box sx={{ width: '100%' }}>
-          <Typography variant="subtitle1" sx={{ color: 'lightblue', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             New Player
           </Typography>
           <Button
@@ -118,17 +131,17 @@ const LandingScreen: FC<LandingScreenProps> = ({
             onClick={onNewPlayer}
             disabled={loading}
             sx={{
-              color: 'lightblue',
-              borderColor: 'lightblue',
+              color: theme.palette.primary.light,
+              borderColor: theme.palette.primary.main,
               width: '200px',
               py: 1.5,
               '&:hover': {
-                borderColor: '#9fd8ff',
-                backgroundColor: 'rgba(159, 216, 255, 0.1)'
+                borderColor: theme.palette.primary.light,
+                backgroundColor: alpha(theme.palette.primary.main, 0.08)
               },
               '&:disabled': {
-                color: '#94a3b8',
-                borderColor: '#cbd5e1'
+                color: theme.palette.text.disabled,
+                borderColor: theme.palette.action.disabledBackground
               }
             }}
           >

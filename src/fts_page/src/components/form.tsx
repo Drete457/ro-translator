@@ -8,6 +8,7 @@ import {
   Stack,
   Paper
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { Faction, PlayerFormData, UnitType } from '../types';
 import { cFL, FormInitialData } from '../helpers';
 import TierFields from './form-tier-fields';
@@ -26,6 +27,7 @@ const Form: FC<FormProps> = ({
   existingUserData,
   onBackToStart
 }) => {
+  const theme = useTheme();
   const [formData, setFormData] = useState<PlayerFormData>(() => {
     // If we have existing user data, use it; otherwise use initial data
     if (existingUserData) {
@@ -35,6 +37,26 @@ const Form: FC<FormProps> = ({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
+
+  const baseFieldSx = (hasError = false) => ({
+    '& .MuiInputBase-input': { color: theme.palette.text.primary },
+    '& .MuiInputLabel-root': { color: theme.palette.primary.light },
+    '& .MuiFormHelperText-root': { color: hasError ? theme.palette.error.main : theme.palette.text.secondary },
+    '& .MuiOutlinedInput-root': {
+      backgroundColor: alpha(theme.palette.common.white, 0.02),
+      '& fieldset': { borderColor: hasError ? theme.palette.error.main : theme.palette.divider },
+      '&:hover fieldset': { borderColor: theme.palette.primary.main },
+      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
+    }
+  });
+
+  const panelSx = {
+    p: 2,
+    mb: 3,
+    backgroundColor: alpha(theme.palette.common.white, 0.04),
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 2
+  } as const;
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -169,7 +191,7 @@ const Form: FC<FormProps> = ({
 
   return (
     <>
-      <Typography variant="h6" sx={{ color: 'lightblue', mb: 2, textAlign: 'center' }}>
+      <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2, textAlign: 'center', fontWeight: 700 }}>
         Selected Faction: {selectedFaction}
       </Typography>
       <Button
@@ -179,11 +201,12 @@ const Form: FC<FormProps> = ({
           mb: 3,
           display: 'block',
           mx: 'auto',
-          color: 'white',
-          borderColor: 'white',
+          color: theme.palette.primary.light,
+          borderColor: theme.palette.primary.main,
           '&:hover': {
-            borderColor: 'lightblue',
-            color: 'lightblue'
+            borderColor: theme.palette.primary.light,
+            color: theme.palette.primary.light,
+            backgroundColor: alpha(theme.palette.primary.main, 0.08)
           }
         }}
       >
@@ -191,8 +214,8 @@ const Form: FC<FormProps> = ({
       </Button>
 
       <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3 }}>
-        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+        <Paper sx={panelSx}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Player Information
           </Typography>
           <Grid container spacing={3}>
@@ -206,14 +229,7 @@ const Form: FC<FormProps> = ({
                   name="userName"
                   value={formData.userName}
                   onChange={handleChange}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.userName)}
                   error={submitted && !!errors.userName}
                   helperText={submitted && errors.userName}
                 />
@@ -232,15 +248,7 @@ const Form: FC<FormProps> = ({
                   onChange={handleChange}
                   error={submitted && Boolean(errors.userId)}
                   helperText={submitted && errors.userId}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && Boolean(errors.userId))}
                 />
               </Stack>
             </Grid>
@@ -255,14 +263,7 @@ const Form: FC<FormProps> = ({
                   type="number"
                   value={formData.power}
                   onChange={handleChange}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.power)}
                   error={submitted && !!errors.power}
                   helperText={submitted && errors.power}
                 />
@@ -271,8 +272,8 @@ const Form: FC<FormProps> = ({
           </Grid>
         </Paper>
 
-        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+        <Paper sx={panelSx}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Player Activity (can see this information on "More Info" on your profile page)
           </Typography>
           <Grid container spacing={3}>
@@ -289,15 +290,7 @@ const Form: FC<FormProps> = ({
                   onChange={handleChange}
                   error={submitted && !!errors.unitsKilled}
                   helperText={submitted && errors.unitsKilled}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.unitsKilled)}
                 />
               </Stack>
             </Grid>
@@ -314,15 +307,7 @@ const Form: FC<FormProps> = ({
                   onChange={handleChange}
                   error={submitted && !!errors.unitsLost}
                   helperText={submitted && errors.unitsLost}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.unitsLost)}
                 />
               </Stack>
             </Grid>
@@ -337,14 +322,7 @@ const Form: FC<FormProps> = ({
                   type="number"
                   value={formData.unitsHealed}
                   onChange={handleChange}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.unitsHealed)}
                   error={submitted && !!errors.unitsHealed}
                   helperText={submitted && errors.unitsHealed}
                 />
@@ -361,14 +339,7 @@ const Form: FC<FormProps> = ({
                   type="number"
                   value={formData.timesAllianceHelped}
                   onChange={handleChange}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.timesAllianceHelped)}
                   error={submitted && !!errors.timesAllianceHelped}
                   helperText={submitted && errors.timesAllianceHelped}
                 />
@@ -377,8 +348,8 @@ const Form: FC<FormProps> = ({
           </Grid>
         </Paper>
 
-        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+        <Paper sx={panelSx}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Time Zone
           </Typography>
           <Grid container spacing={3}>
@@ -390,14 +361,7 @@ const Form: FC<FormProps> = ({
                   label="Time Zone"
                   name="timeZone"
                   value={formData.timeZone}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx()}
                   aria-readonly    
                 />
               </Stack>
@@ -405,8 +369,8 @@ const Form: FC<FormProps> = ({
           </Grid>
         </Paper>
 
-        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+        <Paper sx={panelSx}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Resources Owned
           </Typography>
           <Grid container spacing={3}>
@@ -423,23 +387,15 @@ const Form: FC<FormProps> = ({
                   onChange={handleChange}
                   error={submitted && !!errors.mana}
                   helperText={submitted && errors.mana}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.mana)}
                 />
               </Stack>
             </Grid>
           </Grid>
         </Paper>
 
-        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+        <Paper sx={panelSx}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Army Units
           </Typography>
           <TierFields selectedFaction={selectedFaction} unitType={UnitType.Infantry} fieldPrefix="InfantryCount" formData={formData} handleChange={handleChange} submitted={submitted} errors={errors} />
@@ -458,11 +414,11 @@ const Form: FC<FormProps> = ({
                 size="large"
                 onClick={onBackToStart}
                 sx={{
-                  color: 'lightblue',
-                  borderColor: 'lightblue',
+                  color: theme.palette.primary.light,
+                  borderColor: theme.palette.primary.main,
                   '&:hover': {
-                    borderColor: '#9fd8ff',
-                    backgroundColor: 'rgba(159, 216, 255, 0.1)'
+                    borderColor: theme.palette.primary.light,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.08)
                   }
                 }}
               >
@@ -478,15 +434,17 @@ const Form: FC<FormProps> = ({
               color="primary"
               size="large"
               sx={{
-                backgroundColor: '#1976d2',
-                color: 'white',
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
                 fontWeight: 'bold',
+                boxShadow: 'none',
                 '&:hover': {
-                  backgroundColor: '#115293'
+                  backgroundColor: theme.palette.primary.dark,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)'
                 },
                 '&:disabled': {
-                  backgroundColor: '#e2e8f0',
-                  color: '#64748b',
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  color: theme.palette.text.disabled,
                   fontWeight: 'bold'
                 }
               }}

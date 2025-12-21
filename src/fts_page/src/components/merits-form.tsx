@@ -8,9 +8,10 @@ import {
   Stack,
   Paper
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { MeritFormData, Faction, PlayerFormData } from '../types';
 import { MeritsInitialData } from '../helpers';
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection } from 'firebase/firestore';
 
 interface MeritsFormProps {
   selectedFaction: Faction;
@@ -23,11 +24,12 @@ const MeritsForm: FC<MeritsFormProps> = ({
   existingUserData,
   onBackToStart
 }) => {
+  const theme = useTheme();
   const [formData, setFormData] = useState<MeritFormData>(() => {
     if (existingUserData) {
-      return { 
-        ...MeritsInitialData, 
-        userId: existingUserData.userId || 0 
+      return {
+        ...MeritsInitialData,
+        userId: existingUserData.userId || 0
       };
     }
     return MeritsInitialData;
@@ -35,9 +37,29 @@ const MeritsForm: FC<MeritsFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
 
+  const baseFieldSx = (hasError = false) => ({
+    '& .MuiInputBase-input': { color: theme.palette.text.primary },
+    '& .MuiInputLabel-root': { color: theme.palette.primary.light },
+    '& .MuiFormHelperText-root': { color: hasError ? theme.palette.error.main : theme.palette.text.secondary },
+    '& .MuiOutlinedInput-root': {
+      backgroundColor: alpha(theme.palette.common.white, 0.02),
+      '& fieldset': { borderColor: hasError ? theme.palette.error.main : theme.palette.divider },
+      '&:hover fieldset': { borderColor: theme.palette.primary.main },
+      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
+    }
+  });
+
+  const panelSx = {
+    p: 2,
+    mb: 3,
+    backgroundColor: alpha(theme.palette.common.white, 0.04),
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 2
+  } as const;
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    value.replace(".", "");
+    value.replace('.', '');
 
     if (submitted) setSubmitted(false);
     setErrors({});
@@ -59,12 +81,12 @@ const MeritsForm: FC<MeritsFormProps> = ({
     let isValid = true;
 
     if (!formData.userId) {
-      newErrors.userId = "User ID is required";
+      newErrors.userId = 'User ID is required';
       isValid = false;
     }
 
     if (!formData.merits) {
-      newErrors.merits = "Merits is required";
+      newErrors.merits = 'Merits is required';
       isValid = false;
     }
 
@@ -80,7 +102,7 @@ const MeritsForm: FC<MeritsFormProps> = ({
       return acc;
     }, {} as Record<string, string | number>);
 
-    const docRef = await addDoc(collection(db, "playersMerits"), {
+    const docRef = await addDoc(collection(db, 'playersMerits'), {
       ...newData,
       timestamp: new Date().toISOString()
     });
@@ -115,21 +137,21 @@ const MeritsForm: FC<MeritsFormProps> = ({
 
   return (
     <>
-      <Typography variant="h6" sx={{ color: 'lightblue', mb: 2, textAlign: 'center' }}>
+      <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2, textAlign: 'center', fontWeight: 700 }}>
         Merits Form - {selectedFaction}
       </Typography>
 
       {existingUserData && (
-        <Box sx={{ mb: 2, p: 2, backgroundColor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1 }}>
-          <Typography variant="body2" sx={{ color: '#4caf50', textAlign: 'center' }}>
+        <Box sx={{ mb: 2, p: 2, backgroundColor: alpha(theme.palette.success.main, 0.16), borderRadius: 2, border: `1px solid ${alpha(theme.palette.success.main, 0.35)}` }}>
+          <Typography variant="body2" sx={{ color: theme.palette.success.main, textAlign: 'center', fontWeight: 700 }}>
             ✓ User data found! User ID has been pre-filled from your existing data.
           </Typography>
         </Box>
       )}
 
       <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3 }}>
-        <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Typography variant="h6" sx={{ color: 'lightblue', mb: 2 }}>
+        <Paper sx={panelSx}>
+          <Typography variant="h6" sx={{ color: theme.palette.primary.light, mb: 2 }}>
             Merits Information
           </Typography>
           <Grid container spacing={3}>
@@ -146,15 +168,7 @@ const MeritsForm: FC<MeritsFormProps> = ({
                   onChange={handleChange}
                   error={submitted && Boolean(errors.userId)}
                   helperText={submitted && errors.userId}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiFormHelperText-root': { color: '#ff6b6b' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: (submitted && errors.userId) ? '#ff6b6b' : 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && Boolean(errors.userId))}
                 />
               </Stack>
             </Grid>
@@ -169,14 +183,7 @@ const MeritsForm: FC<MeritsFormProps> = ({
                   type="number"
                   value={formData.merits}
                   onChange={handleChange}
-                  sx={{
-                    '& .MuiInputBase-input': { color: 'white' },
-                    '& .MuiInputLabel-root': { color: 'lightblue' },
-                    '& .MuiOutlinedInput-root': {
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.23)' },
-                      '&:hover fieldset': { borderColor: 'lightblue' },
-                    }
-                  }}
+                  sx={baseFieldSx(submitted && !!errors.merits)}
                   error={submitted && !!errors.merits}
                   helperText={submitted && errors.merits}
                 />
@@ -194,11 +201,11 @@ const MeritsForm: FC<MeritsFormProps> = ({
                 size="large"
                 onClick={onBackToStart}
                 sx={{
-                  color: 'lightblue',
-                  borderColor: 'lightblue',
+                  color: theme.palette.primary.light,
+                  borderColor: theme.palette.primary.main,
                   '&:hover': {
-                    borderColor: '#9fd8ff',
-                    backgroundColor: 'rgba(159, 216, 255, 0.1)'
+                    borderColor: theme.palette.primary.light,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.08)
                   }
                 }}
               >
@@ -214,15 +221,17 @@ const MeritsForm: FC<MeritsFormProps> = ({
               color="primary"
               size="large"
               sx={{
-                backgroundColor: '#1976d2',
-                color: 'white',
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
                 fontWeight: 'bold',
+                boxShadow: 'none',
                 '&:hover': {
-                  backgroundColor: '#115293'
+                  backgroundColor: theme.palette.primary.dark,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)'
                 },
                 '&:disabled': {
-                  backgroundColor: '#e2e8f0',
-                  color: '#64748b',
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  color: theme.palette.text.disabled,
                   fontWeight: 'bold'
                 }
               }}
@@ -235,6 +244,6 @@ const MeritsForm: FC<MeritsFormProps> = ({
       </Box>
     </>
   );
-}
+};
 
 export default MeritsForm;

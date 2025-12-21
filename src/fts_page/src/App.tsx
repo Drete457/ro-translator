@@ -7,17 +7,19 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import SelectedFaction from './components/select-faction';
 import { Faction, PlayerFormData } from './types';
 import Form from './components/form';
 import { logo } from './assets';
 import { MeritsForm, TabPanel, LandingScreen } from './components';
 import getFirebase from './api/firebase';
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 
 type EntryStep = 'landing' | 'faction-selection' | 'forms';
 
 const App = () => {
+  const theme = useTheme();
   const [selectedFaction, setSelectedFaction] = useState<Faction | null>(null);
   const [tabValue, setTabValue] = useState<number>(0);
   const [entryStep, setEntryStep] = useState<EntryStep>('landing');
@@ -30,7 +32,6 @@ const App = () => {
       const db = await getFirebase();
       const playersInfoCollection = collection(db, 'playersInfo');
 
-      // Try searching with userId as number first
       let q = query(
         playersInfoCollection,
         where('userId', '==', Number(userId)),
@@ -40,7 +41,6 @@ const App = () => {
 
       let querySnapshot = await getDocs(q);
 
-      // If no results found with number, try with string
       if (querySnapshot.empty) {
         q = query(
           playersInfoCollection,
@@ -97,9 +97,7 @@ const App = () => {
     }
 
     setSelectedFaction(faction);
-
-    if (faction)
-      setEntryStep('forms');
+    setEntryStep('forms');
   };
 
   const handleTabChange = (event: SyntheticEvent, newValue: number) => {
@@ -116,18 +114,24 @@ const App = () => {
   };
 
   return (
-    <Box sx={{
-      minHeight: '100vh',
-      backgroundColor: '#0a1929',
-      pt: 4, pb: 4
-    }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: theme.palette.background.default,
+        pt: 4,
+        pb: 4,
+        backgroundImage: `radial-gradient(circle at 20% 20%, ${alpha(theme.palette.primary.light, 0.06)}, transparent 35%), radial-gradient(circle at 80% 0%, ${alpha(theme.palette.primary.main, 0.08)}, transparent 30%)`
+      }}
+    >
       <Container maxWidth="lg">
         <Paper
           elevation={6}
           sx={{
             p: 4,
-            backgroundColor: '#132f4c',
-            color: 'white'
+            backgroundColor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: `0 10px 40px ${alpha('#000', 0.35)}`
           }}
         >
           <Box
@@ -146,12 +150,13 @@ const App = () => {
                 width: 80,
                 height: 80,
                 mr: 2,
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                borderRadius: 1
+                backgroundColor: alpha(theme.palette.primary.main, 0.18),
+                borderRadius: 2,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.4)}`
               }}
             />
-            <Typography variant="h4" component="h1" sx={{ color: 'white' }}>
-              Fury of The Titans Alliance Army Data
+            <Typography variant="h4" component="h1" sx={{ color: theme.palette.text.primary }}>
+              Ice Wolves Alliance Army Data
             </Typography>
           </Box>
 
@@ -175,12 +180,12 @@ const App = () => {
                 onChange={handleTabChange}
                 textColor="inherit"
                 TabIndicatorProps={{
-                  style: { backgroundColor: 'lightblue' }
+                  style: { backgroundColor: theme.palette.primary.main }
                 }}
                 sx={{
                   '& .MuiTab-root': {
-                    color: 'rgba(255,255,255,0.7)',
-                    '&.Mui-selected': { color: 'lightblue' }
+                    color: theme.palette.text.secondary,
+                    '&.Mui-selected': { color: theme.palette.primary.light }
                   },
                   mb: 2
                 }}
