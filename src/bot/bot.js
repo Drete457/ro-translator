@@ -13,7 +13,8 @@ const {
     ButtonStyle,
     MessageFlags,
     GuildScheduledEventPrivacyLevel,
-    GuildScheduledEventEntityType
+    GuildScheduledEventEntityType,
+    GuildScheduledEventStatus
 } = require("discord.js");
 const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
 const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
@@ -1951,6 +1952,57 @@ try {
             return null;
         }
     }
+
+    // ==================== EVENT ANNOUNCEMENTS ====================
+    const attentionTag = '@fts';
+
+    const formatEventTimeForDiscord = (date) => {
+        if (!date) return 'Date unavailable';
+        const ts = Math.floor(date.getTime() / 1000);
+        return `<t:${ts}:F> • <t:${ts}:R>`;
+    };
+
+    const announceScheduledEvent = async (event, phase = 'created') => {
+        try {
+            if (!channelEvent) return;
+            const targetChannel = client.channels.cache.get(channelEvent);
+            if (!targetChannel) {
+                console.log('Event announcement channel not found');
+                return;
+            }
+
+            const startDate = event.scheduledStartAt || (event.scheduledStartTimestamp ? new Date(event.scheduledStartTimestamp) : null);
+            const startText = formatEventTimeForDiscord(startDate);
+            const link = event.url || event.entityMetadata?.location || 'No link available';
+
+            const content = phase === 'active'
+                ? `${attentionTag} 🚀 **${event.name}** just started!
+⏰ Start: ${startText}
+🔗 ${link}`
+                : `${attentionTag} 📅 New event added to the calendar!
+**${event.name}**
+⏰ Start: ${startText}
+🔗 ${link}`;
+
+            await safeSendMessage(targetChannel, {
+                content,
+                allowedMentions: { parse: ['roles', 'users', 'everyone'] }
+            });
+        } catch (error) {
+            console.error('Error announcing scheduled event:', error.message || error);
+        }
+    };
+
+    client.on(Events.GuildScheduledEventCreate, async (event) => {
+        await announceScheduledEvent(event, 'created');
+    });
+
+    client.on(Events.GuildScheduledEventUpdate, async (oldEvent, newEvent) => {
+        const statusChanged = oldEvent?.status !== newEvent.status;
+        if (statusChanged && newEvent.status === GuildScheduledEventStatus.Active) {
+            await announceScheduledEvent(newEvent, 'active');
+        }
+    });
 
     // ==================== BOT MONITORING SYSTEM ====================
     const botStartTime = Date.now();
