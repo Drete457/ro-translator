@@ -147,6 +147,9 @@ try {
         });
     };
 
+    // Prevent concurrent imports from spamming replies
+    let importInProgress = false;
+
     client.on(Events.MessageCreate, async (message) => {
         try {
             if (!isInDevelopment && message.author.bot) return;
@@ -197,6 +200,11 @@ try {
 
             if (message.channel.id === channelDataTest || message.channel.id === channelData) {
                 if (message.content.startsWith("!players-import")) {
+                    if (importInProgress) {
+                        await message.channel.send("⚠️ Import already in progress. Please wait for it to finish.");
+                        return;
+                    }
+
                     if (!isDataChannel(message.channel.id)) {
                         await message.channel.send("❌ This command can only be used in the data channel.");
                         return;
@@ -220,6 +228,7 @@ try {
                     }
 
                     try {
+                        importInProgress = true;
                         await message.channel.sendTyping();
 
                         const response = await fetch(attachment.url);
@@ -241,10 +250,10 @@ try {
 
                         for (const record of records) {
                             const userKey = String(record.userId);
-                            const scanRef = doc(collection(db, "playersScans"), userKey);
                             const sanitized = sanitizeScanRecord(record);
                             const payload = cleanPayloadValues({
                                 ...sanitized,
+                                userId: userKey,
                                 timestampScan: record.timestampScan || new Date().toISOString(),
                                 source: 'excel'
                             });
@@ -263,7 +272,8 @@ try {
                             const cleanPayload = payload;
 
                             try {
-                                await setDoc(scanRef, cleanPayload, { merge: true });
+                                const scanRef = doc(collection(db, "playersScans"));
+                                await setDoc(scanRef, cleanPayload);
                                 processed += 1;
                             } catch (writeErr) {
                                 failed += 1;
@@ -283,6 +293,8 @@ try {
                     } catch (err) {
                         console.error("Error in !players-import:", err);
                         await message.channel.send("❌ Error importing the file. Please try again.");
+                    } finally {
+                        importInProgress = false;
                     }
 
                     return;

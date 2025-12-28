@@ -1,5 +1,5 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, getDocs, query, where, orderBy, doc, setDoc } from "firebase/firestore";
+const { initializeApp, getApps, getApp } = require("firebase/app");
+const { getFirestore, collection, getDocs, query, where, orderBy, doc, setDoc } = require("firebase/firestore");
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -14,8 +14,6 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-const getFirebase = async () => {
-  return db;
-};
+const getFirebase = async () => db;
 
-export { getFirebase, collection, getDocs, query, where, orderBy, doc, setDoc };
+module.exports = { getFirebase, collection, getDocs, query, where, orderBy, doc, setDoc };
