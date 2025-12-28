@@ -16,10 +16,11 @@ const {
     GuildScheduledEventEntityType,
     GuildScheduledEventStatus
 } = require("discord.js");
-const { getFirebase, collection, getDocs, query, where, orderBy } = require('./firebase');
+const { getFirebase, collection, getDocs, query, where, orderBy, doc, setDoc } = require('./firebase');
 const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
 const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
+const { playerScanHeader, parsePlayersScanExcel } = require('./helpers/players-scan');
 const fs = require('fs');
 const os = require('os');
 const { birthdayMemes, generateBirthdayMessage } = require('./birthday');
@@ -68,6 +69,59 @@ try {
 
     // Alliance Entertainment instance (will be initialized after client is ready)
     let allianceEntertainment = null;
+
+    const playerInfoWithScanHeader = { ...playerInfo, ...playerScanHeader };
+
+    const isDataChannel = (channelId) => channelId === channelData || channelId === channelDataTest;
+
+    const buildScanMap = (docs) => {
+        const map = new Map();
+        docs.forEach((data) => {
+            if (!data) return;
+            const key = data.userId !== undefined && data.userId !== null ? String(data.userId) : undefined;
+            if (!key) return;
+            const existing = map.get(key);
+            const tsNew = data.timestampScan ? new Date(data.timestampScan) : null;
+            const tsOld = existing && existing.timestampScan ? new Date(existing.timestampScan) : null;
+            const isNewer = tsNew && (!tsOld || tsNew > tsOld);
+            if (!existing || isNewer) {
+                map.set(key, data);
+            }
+        });
+        return map;
+    };
+
+    const fetchLatestScansMap = async (db, dateFilter) => {
+        let scansQueryRef;
+        if (dateFilter) {
+            scansQueryRef = query(
+                collection(db, "playersScans"),
+                where("timestampScan", ">=", dateFilter.toISOString()),
+                orderBy("timestampScan", "desc")
+            );
+        } else {
+            scansQueryRef = query(collection(db, "playersScans"), orderBy("timestampScan", "desc"));
+        }
+
+        const scansSnapshot = await getDocs(scansQueryRef);
+        const scansData = scansSnapshot.docs.map((docSnap) => docSnap.data());
+        return buildScanMap(scansData);
+    };
+
+    const getScanForUser = (scansMap, userId) => {
+        if (!scansMap || !userId) return undefined;
+        const key = String(userId);
+        const byNumber = !Number.isNaN(Number(userId)) ? String(Number(userId)) : null;
+        return scansMap.get(key) || (byNumber ? scansMap.get(byNumber) : undefined);
+    };
+
+    const mergeWithScan = (items, scansMap) => {
+        if (!scansMap) return items;
+        return items.map((item) => {
+            const scan = getScanForUser(scansMap, item.userId);
+            return scan ? { ...item, ...scan } : item;
+        });
+    };
 
     client.on(Events.MessageCreate, async (message) => {
         try {
@@ -118,6 +172,67 @@ try {
             }
 
             if (message.channel.id === channelDataTest || message.channel.id === channelData) {
+                if (message.content.startsWith("!players-import")) {
+                    if (!isDataChannel(message.channel.id)) {
+                        await message.channel.send("❌ This command can only be used in the data channel.");
+                        return;
+                    }
+
+                    if (message.author.id !== discordOwnerId) {
+                        await message.channel.send("❌ Only the owner can run this command.");
+                        return;
+                    }
+
+                    const attachment = message.attachments.first();
+                    if (!attachment) {
+                        await message.channel.send("Attach an .xlsx file with the data.");
+                        return;
+                    }
+
+                    const isXlsx = attachment.name.toLowerCase().endsWith('.xlsx') || (attachment.contentType && attachment.contentType.includes('spreadsheetml'));
+                    if (!isXlsx) {
+                        await message.channel.send("The file must be .xlsx (Excel).");
+                        return;
+                    }
+
+                    try {
+                        await message.channel.sendTyping();
+
+                        const response = await fetch(attachment.url);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const buffer = Buffer.from(arrayBuffer);
+
+                        const { records, errors } = await parsePlayersScanExcel(buffer);
+
+                        if (!records.length) {
+                            const errMsg = errors && errors.length ? `\nErrors: ${errors.join('; ')}` : '';
+                            await message.channel.send(`No valid rows found.${errMsg}`);
+                            return;
+                        }
+
+                        const db = await getFirebase();
+                        let processed = 0;
+
+                        for (const record of records) {
+                            const userKey = String(record.userId);
+                            const scanRef = doc(collection(db, "playersScans"), userKey);
+                            await setDoc(scanRef, { ...playerScanHeader, ...record, timestampScan: record.timestampScan || new Date().toISOString() }, { merge: true });
+                            processed += 1;
+                        }
+
+                        let reply = `✅ Import complete: ${processed} players updated.`;
+                        if (errors && errors.length) {
+                            reply += `\n⚠️ Rows with errors: ${errors.length}`;
+                        }
+                        await message.channel.send(reply);
+                    } catch (err) {
+                        console.error("Error in !players-import:", err);
+                        await message.channel.send("❌ Error importing the file. Please try again.");
+                    }
+
+                    return;
+                }
+
                 if (message.content === "!commands") {
                     let commands = "**Data Commands:**\n";
                     commands += "`!players-info [yyyy-mm-dd]` - Latest entry per user (default)\n";
@@ -129,7 +244,7 @@ try {
                     commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
                     if (message.author.id === discordOwnerId) {
-                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`, `!send_meme`";
+                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`, `!send_meme`, '!players-import <file>`\n";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
@@ -174,16 +289,18 @@ try {
                     // Filter to get only the latest entry per userId
                     const latestPerUser = new Map();
                     allData.forEach(entry => {
-                        if (!latestPerUser.has(entry.userId) || 
+                        if (!latestPerUser.has(entry.userId) ||
                             new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
                             latestPerUser.set(entry.userId, entry);
                         }
                     });
 
                     const latestData = Array.from(latestPerUser.values());
+                    const scansMap = await fetchLatestScansMap(db, dateFilter);
+                    const latestDataWithScan = mergeWithScan(latestData, scansMap);
 
                     const fileName = `players_info_latest_${dateFilter ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
-                    const filePath = await createExcelFile(playerInfo, latestData, fileName, `Players Latest Info${dateFilter ? ' from ' + args[0] : ''} (${latestData.length} unique users)`);
+                    const filePath = await createExcelFile(playerInfoWithScanHeader, latestDataWithScan, fileName, `Players Latest Info${dateFilter ? ' from ' + args[0] : ''} (${latestDataWithScan.length} unique users)`);
 
                     if (filePath) {
                         const attachment = new AttachmentBuilder(filePath, { name: fileName });
@@ -234,9 +351,11 @@ try {
 
                     // Get unique user count for display
                     const uniqueUsers = new Set(data.map(entry => entry.userId)).size;
+                    const scansMap = await fetchLatestScansMap(db, dateFilter);
+                    const dataWithScan = mergeWithScan(data, scansMap);
 
                     const fileName = `players_info_all_${dateFilter ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
-                    const filePath = await createExcelFile(playerInfo, data, fileName, `All Players Info${dateFilter ? ' from ' + args[0] : ''} (${data.length} entries)`);
+                    const filePath = await createExcelFile(playerInfoWithScanHeader, dataWithScan, fileName, `All Players Info${dateFilter ? ' from ' + args[0] : ''} (${dataWithScan.length} entries)`);
 
                     if (filePath) {
                         const attachment = new AttachmentBuilder(filePath, { name: fileName });
@@ -288,16 +407,18 @@ try {
                     // Default behavior: show latest per user (same as !players-info-latest)
                     const latestPerUser = new Map();
                     allData.forEach(entry => {
-                        if (!latestPerUser.has(entry.userId) || 
+                        if (!latestPerUser.has(entry.userId) ||
                             new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
                             latestPerUser.set(entry.userId, entry);
                         }
                     });
 
                     const data = Array.from(latestPerUser.values());
+                    const scansMap = await fetchLatestScansMap(db, dateFilter);
+                    const dataWithScan = mergeWithScan(data, scansMap);
 
                     const fileName = `players_info_${dateFilter ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
-                    const filePath = await createExcelFile(playerInfo, data, fileName, `Players Info${dateFilter ? ' from ' + args[0] : ''}`);
+                    const filePath = await createExcelFile(playerInfoWithScanHeader, dataWithScan, fileName, `Players Info${dateFilter ? ' from ' + args[0] : ''}`);
 
                     if (filePath) {
                         const attachment = new AttachmentBuilder(filePath, { name: fileName });
@@ -368,17 +489,24 @@ try {
                         })
                     });
 
+                    const scansMap = await fetchLatestScansMap(db, dateFilterMerits);
+                    const dataMeritsWithScan = dataMeritsFiltered.map((entry) => {
+                        const scan = getScanForUser(scansMap, entry.userId);
+                        return scan ? { ...entry, ...scan } : entry;
+                    });
+
                     const headerFormatted = {
                         userId: undefined,
                         userName: '',
                         power: undefined,
                         merits: undefined,
                         percentageMeritsDividePower: '',
-                        timestamp: ''
+                        timestamp: '',
+                        ...playerScanHeader
                     };
 
                     const fileName = `players_merits_${dateFilterMerits ? args[0].replace(/-/g, '') + '_' : ''}${Date.now()}.xlsx`;
-                    const filePath = await createExcelFile(headerFormatted, dataMeritsFiltered, fileName, `Players Merits Info${dateFilterMerits ? ' from ' + args[0] : ''}`);
+                    const filePath = await createExcelFile(headerFormatted, dataMeritsWithScan, fileName, `Players Merits Info${dateFilterMerits ? ' from ' + args[0] : ''}`);
 
                     if (filePath) {
                         const attachment = new AttachmentBuilder(filePath, { name: fileName });
@@ -413,7 +541,7 @@ try {
                     }
 
                     const db = await getFirebase();
-                    
+
                     // Fetch all players info
                     const playersQueryRef = query(collection(db, "playersInfo"), orderBy("timestamp", "desc"));
                     const querySnapshotPlayers = await getDocs(playersQueryRef);
@@ -424,10 +552,12 @@ try {
                     const querySnapshotMerits = await getDocs(meritsQueryRef);
                     const allMeritsData = querySnapshotMerits.docs.map(doc => doc.data());
 
+                    const scansMap = await fetchLatestScansMap(db);
+
                     // Filter to get only the latest entry per userId for players info
                     const latestPlayersPerUser = new Map();
                     allPlayersData.forEach(entry => {
-                        if (!latestPlayersPerUser.has(entry.userId) || 
+                        if (!latestPlayersPerUser.has(entry.userId) ||
                             new Date(entry.timestamp) > new Date(latestPlayersPerUser.get(entry.userId).timestamp)) {
                             latestPlayersPerUser.set(entry.userId, entry);
                         }
@@ -436,7 +566,7 @@ try {
                     // Filter to get only the latest entry per userId for merits
                     const latestMeritsPerUser = new Map();
                     allMeritsData.forEach(entry => {
-                        if (!latestMeritsPerUser.has(entry.userId) || 
+                        if (!latestMeritsPerUser.has(entry.userId) ||
                             new Date(entry.timestamp) > new Date(latestMeritsPerUser.get(entry.userId).timestamp)) {
                             latestMeritsPerUser.set(entry.userId, entry);
                         }
@@ -472,8 +602,11 @@ try {
                                 percentage = `${Math.round((merits / power) * 10000) / 100}%`;
                             }
 
+                            const scanData = getScanForUser(scansMap, userId);
+                            const mergedPlayer = scanData ? { ...playerData, ...scanData } : playerData;
+
                             finalListData.push({
-                                ...playerData,
+                                ...mergedPlayer,
                                 merits: merits || "N/A",
                                 percentageMeritsDividePower: percentage,
                                 meritsTimestamp: meritsData ? meritsData.timestamp : "N/A"
@@ -490,7 +623,7 @@ try {
 
                     // Create combined header with all player info fields plus merits
                     const combinedHeader = {
-                        ...playerInfo,
+                        ...playerInfoWithScanHeader,
                         merits: undefined,
                         percentageMeritsDividePower: '',
                         meritsTimestamp: ''
@@ -502,7 +635,7 @@ try {
                     if (filePath) {
                         const attachment = new AttachmentBuilder(filePath, { name: fileName });
                         let responseMessage = `Here is the final players list with all information including merits:\n📊 **${finalListData.length}** players found`;
-                        
+
                         if (notFoundIds.length > 0) {
                             responseMessage += `\n⚠️ **${notFoundIds.length}** IDs not found: ${notFoundIds.join(", ")}`;
                         }
@@ -642,7 +775,7 @@ try {
                         // Filter to get only the latest entry per userId, ignoring 0/null values
                         const latestPerUser = new Map();
                         allPlayersData.forEach(entry => {
-                            if (!latestPerUser.has(entry.userId) || 
+                            if (!latestPerUser.has(entry.userId) ||
                                 new Date(entry.timestamp) > new Date(latestPerUser.get(entry.userId).timestamp)) {
                                 latestPerUser.set(entry.userId, entry);
                             }
@@ -721,7 +854,7 @@ try {
                                     if (count > 0) {
                                         const troopType = type.toLowerCase();
                                         troopSummary[tier][troopType] += count;
-                                        
+
                                         // Track T5 specifically
                                         if (tier === 't5') {
                                             t5Summary[troopType] += count;
@@ -747,10 +880,10 @@ try {
 
                         // Sort timezones and factions by count
                         const topTimezones = Object.entries(timeZones)
-                            .sort(([,a], [,b]) => b - a)
+                            .sort(([, a], [, b]) => b - a)
                             .slice(0, 5);
                         const topFactions = Object.entries(factions)
-                            .sort(([,a], [,b]) => b - a)
+                            .sort(([, a], [, b]) => b - a)
                             .slice(0, 3);
 
                         // Sort players with T5 by total T5 count
@@ -781,7 +914,7 @@ try {
                             .setTimestamp();
 
                         if (topFactions.length > 0) {
-                            const factionsText = topFactions.map(([faction, count]) => 
+                            const factionsText = topFactions.map(([faction, count]) =>
                                 `• **${faction}:** ${count} players`).join('\n');
                             mainEmbed.addFields({
                                 name: "🏛️ Top Factions",
@@ -791,7 +924,7 @@ try {
                         }
 
                         if (topTimezones.length > 0) {
-                            const timezonesText = topTimezones.map(([tz, count]) => 
+                            const timezonesText = topTimezones.map(([tz, count]) =>
                                 `• **${tz}:** ${count} players`).join('\n');
                             mainEmbed.addFields({
                                 name: "🌍 Top Timezones",
@@ -813,7 +946,7 @@ try {
                                 fallbackText += `• Avg Power (reported): ${avgPowerReported.toLocaleString()}\n`;
                                 fallbackText += `• Avg Power (all players): ${avgPowerAll.toLocaleString()}\n`;
                                 fallbackText += `• Total Mana: ${totalMana.toLocaleString()}\n\n`;
-                                
+
                                 fallbackText += `⚔️ **T5 Forces Overview:**\n`;
                                 fallbackText += `• Total T5 Soldiers: ${Number(totalT5).toLocaleString()}\n`;
                                 fallbackText += `• Players with T5: ${playersWithT5.length}\n`;
@@ -864,7 +997,7 @@ try {
                                 .setTitle("💡 Strategic Recommendations")
                                 .setDescription(recommendations.join('\n\n'))
                                 .setColor(0xFFA500);
-                                
+
                             // Send recommendations with permission handling
                             try {
                                 await message.channel.send({ embeds: [recEmbed] });
@@ -968,7 +1101,7 @@ try {
                         resultMessage += `📍 Server: **${guild.name}**\n`;
                         resultMessage += `📅 Calendar events (next 15 days): **${calendarResult.events.length}**\n`;
                         resultMessage += `📊 Discord events: **${discordEventsAfter.size}**\n\n`;
-                        
+
                         if (eventsCreated > 0 || eventsDeleted > 0) {
                             resultMessage += `📝 **Changes:**\n`;
                             if (eventsCreated > 0) resultMessage += `• Created: **${eventsCreated}** event(s)\n`;
@@ -1567,7 +1700,7 @@ try {
 
                     // Fetch up to 100 messages first to determine activity level
                     const messages = await message.channel.messages.fetch({ limit: 100 });
-                    
+
                     // Try different time windows based on message activity
                     const timeWindows = [
                         { hours: 8, label: '8 hours' },
@@ -1575,14 +1708,14 @@ try {
                         { hours: 24, label: '24 hours' },
                         { hours: 48, label: '48 hours' }
                     ];
-                    
+
                     let selectedWindow = timeWindows[0];
                     let recentMessages = [];
-                    
+
                     // Find the best time window that has enough messages
                     for (const window of timeWindows) {
                         const cutoffTime = new Date(Date.now() - window.hours * 60 * 60 * 1000);
-                        
+
                         const windowMessages = messages
                             .filter(msg =>
                                 msg.createdAt > cutoffTime &&
@@ -1597,14 +1730,14 @@ try {
                                 timestamp: msg.createdAt
                             }))
                             .reverse();
-                        
+
                         // If we have at least 10 messages, use this window
                         if (windowMessages.length >= 10) {
                             selectedWindow = window;
                             recentMessages = windowMessages.slice(0, 50);  // Increased to 50 messages for Gemini 2.5
                             break;
                         }
-                        
+
                         // If this is a larger window with more messages, keep it as fallback
                         if (windowMessages.length > recentMessages.length) {
                             selectedWindow = window;
@@ -1619,7 +1752,7 @@ try {
 
                     // Show typing indicator again for longer processing
                     await message.channel.sendTyping();
-                    
+
                     const summary = await geminiChat.summarizeMessages(recentMessages);
 
                     const headerText = `**📋 Summary of the last ${selectedWindow.label}** (${recentMessages.length} messages):\n\n`;
@@ -1806,7 +1939,7 @@ try {
                         requestFunction: fetch,
                     }
                 );
-                
+
                 if (Array.isArray(uiTranslations)) {
                     uiTexts.viewTranslation = uiTranslations[0]?.text || uiTexts.viewTranslation;
                     uiTexts.translationReady = uiTranslations[1]?.text || uiTexts.translationReady;
@@ -2034,7 +2167,7 @@ try {
         const minutes = Math.floor(seconds / 60);
         const hours = Math.floor(minutes / 60);
         const days = Math.floor(hours / 24);
-        
+
         if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
         if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
         if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
@@ -2048,7 +2181,7 @@ try {
         const freeMem = os.freemem();
         const usedMem = totalMem - freeMem;
         const cpus = os.cpus();
-        
+
         // Calculate CPU usage (average across all cores)
         let totalIdle = 0;
         let totalTick = 0;
@@ -2139,7 +2272,7 @@ try {
     };
 
     // ==================== CALENDAR TO DISCORD EVENTS SYNC ====================
-    
+
     // Map to track synced events: Google Calendar ID -> Discord Event ID
     const syncedEventsMap = new Map();
 
@@ -2166,7 +2299,7 @@ try {
 
             // Get events from Google Calendar (next 15 days)
             const calendarResult = await calendarHelper.getUpcomingEvents(15);
-            
+
             if (!calendarResult.success) {
                 console.error('Failed to fetch calendar events:', calendarResult.error);
                 return;
@@ -2182,7 +2315,7 @@ try {
             // Create a map of Discord events by their Calendar ID (stored in description)
             const discordEventsByCalendarId = new Map();
             const discordEventsWithoutCalendarId = [];
-            
+
             discordEvents.forEach(event => {
                 const calendarId = extractCalendarIdFromDescription(event.description);
                 if (calendarId) {
@@ -2201,7 +2334,7 @@ try {
 
                 const startTime = new Date(calEvent.start.dateTime || calEvent.start.date);
                 const endTime = new Date(calEvent.end.dateTime || calEvent.end.date);
-                
+
                 // Skip events that have already ended
                 if (endTime < new Date()) {
                     continue;
@@ -2213,13 +2346,13 @@ try {
                 }
 
                 const eventDescription = `${calEvent.description || 'No description'}\n\n[CalendarID:${calEvent.id}]`;
-                
+
                 // Check if this event already exists in Discord
                 const existingDiscordEvent = discordEventsByCalendarId.get(calEvent.id);
 
                 if (existingDiscordEvent) {
                     // Event exists - check if it needs updating
-                    const needsUpdate = 
+                    const needsUpdate =
                         existingDiscordEvent.name !== calEvent.summary ||
                         existingDiscordEvent.scheduledStartAt.getTime() !== startTime.getTime() ||
                         existingDiscordEvent.scheduledEndAt?.getTime() !== endTime.getTime();
@@ -2286,7 +2419,7 @@ try {
      */
     const syncAllGuilds = async () => {
         console.log('Starting calendar sync for all guilds...');
-        
+
         for (const [guildId, guild] of client.guilds.cache) {
             try {
                 // Check if bot has permission to manage events
@@ -2300,102 +2433,106 @@ try {
                 console.error(`Error syncing guild ${guild.name}:`, error);
             }
         }
-        
+
         console.log('Calendar sync completed for all guilds');
     };
 
     // Start monitoring when bot is ready
     client.once(Events.ClientReady, async () => {
         console.log(`Bot is ready! Logged in as ${client.user.tag}`);
-        
-        // Send initial startup message
-        try {
-            const monitoringChannel = client.channels.cache.get(channelStatus);
-            if (monitoringChannel) {
-                const startupEmbed = new EmbedBuilder()
-                    .setTitle('🚀 Bot Started')
-                    .setDescription('The bot has successfully started and is now online!')
-                    .setColor(0x00FF00)
-                    .setTimestamp()
-                    .addFields(
-                        { name: '🤖 Bot', value: client.user.tag, inline: true },
-                        { name: '🌐 Servers', value: `${client.guilds.cache.size}`, inline: true },
-                        { name: '📅 Started At', value: new Date().toISOString(), inline: false }
-                    );
-                await monitoringChannel.send({ embeds: [startupEmbed] });
+
+        if (!isInDevelopment) {
+            // Send initial startup message
+            try {
+                const monitoringChannel = client.channels.cache.get(channelStatus);
+                if (monitoringChannel) {
+                    const startupEmbed = new EmbedBuilder()
+                        .setTitle('🚀 Bot Started')
+                        .setDescription('The bot has successfully started and is now online!')
+                        .setColor(0x00FF00)
+                        .setTimestamp()
+                        .addFields(
+                            { name: '🤖 Bot', value: client.user.tag, inline: true },
+                            { name: '🌐 Servers', value: `${client.guilds.cache.size}`, inline: true },
+                            { name: '📅 Started At', value: new Date().toISOString(), inline: false }
+                        );
+                    await monitoringChannel.send({ embeds: [startupEmbed] });
+                }
+            } catch (error) {
+                console.error('Error sending startup message:', error);
             }
-        } catch (error) {
-            console.error('Error sending startup message:', error);
-        }
 
-        // Start status update interval (every 24 hours)
-        setInterval(sendStatusUpdate, 86400000);
-        
-        // Send first status after 5 seconds
-        setTimeout(sendStatusUpdate, 5000);
+            // Start status update interval (every 24 hours)
+            setInterval(sendStatusUpdate, 86400000);
 
-        // ==================== START CALENDAR SYNC ====================
-        if (calendarHelper) {
-            console.log('Starting Calendar to Discord Events sync system...');
-            
-            // Run first sync after 60 seconds (give time for everything to initialize)
-            setTimeout(async () => {
-                console.log('Running initial calendar sync...');
-                await syncAllGuilds();
-            }, 60000);
-            
-            // Then sync every 10 minutes (600000 ms)
-            setInterval(async () => {
-                console.log('Running scheduled calendar sync...');
-                await syncAllGuilds();
-            }, 600000);
-            
-            console.log('Calendar sync scheduled: every 10 minutes');
-        } else {
-            console.log('Calendar helper not available - sync disabled');
-        }
+            // Send first status after 5 seconds
+            setTimeout(sendStatusUpdate, 5000);
 
-        // ==================== START ALLIANCE CHAT ENTERTAINMENT ====================
-        if (channelAllianceChat) {
-            allianceEntertainment = new AllianceEntertainment(client, channelAllianceChat);
-            allianceEntertainment.start(1800000); // Start with 30 min delay
-        } else {
-            console.log('Alliance chat channel not configured - entertainment disabled');
+            // ==================== START CALENDAR SYNC ====================
+            if (calendarHelper) {
+                console.log('Starting Calendar to Discord Events sync system...');
+
+                // Run first sync after 60 seconds (give time for everything to initialize)
+                setTimeout(async () => {
+                    console.log('Running initial calendar sync...');
+                    await syncAllGuilds();
+                }, 60000);
+
+                // Then sync every 10 minutes (600000 ms)
+                setInterval(async () => {
+                    console.log('Running scheduled calendar sync...');
+                    await syncAllGuilds();
+                }, 600000);
+
+                console.log('Calendar sync scheduled: every 10 minutes');
+            } else {
+                console.log('Calendar helper not available - sync disabled');
+            }
+
+            // ==================== START ALLIANCE CHAT ENTERTAINMENT ====================
+            if (channelAllianceChat) {
+                allianceEntertainment = new AllianceEntertainment(client, channelAllianceChat);
+                allianceEntertainment.start(1800000); // Start with 30 min delay
+            } else {
+                console.log('Alliance chat channel not configured - entertainment disabled');
+            }
         }
     });
 
     const gracefulShutdown = async () => {
-        console.log('Bot is shutting down, saving conversations...');
-        
-        // Send shutdown message to monitoring channel
-        try {
-            const monitoringChannel = client.channels.cache.get(channelStatus);
-            if (monitoringChannel) {
-                const shutdownEmbed = new EmbedBuilder()
-                    .setTitle('⚠️ Bot Shutting Down')
-                    .setDescription('The bot is shutting down gracefully.')
-                    .setColor(0xFFA500)
-                    .setTimestamp()
-                    .addFields(
-                        { name: '⏱️ Total Uptime', value: formatUptime(Date.now() - botStartTime), inline: true },
-                        { name: '📝 Total Reports', value: `${statusMessageCount}`, inline: true }
-                    );
-                await monitoringChannel.send({ embeds: [shutdownEmbed] });
-            }
-        } catch (error) {
-            console.error('Error sending shutdown message:', error);
-        }
+        if (!isInDevelopment) {
+            console.log('Bot is shutting down, saving conversations...');
 
-        if (geminiChat && geminiChat.saveConversations) {
-            geminiChat.saveConversations();
+            // Send shutdown message to monitoring channel
+            try {
+                const monitoringChannel = client.channels.cache.get(channelStatus);
+                if (monitoringChannel) {
+                    const shutdownEmbed = new EmbedBuilder()
+                        .setTitle('⚠️ Bot Shutting Down')
+                        .setDescription('The bot is shutting down gracefully.')
+                        .setColor(0xFFA500)
+                        .setTimestamp()
+                        .addFields(
+                            { name: '⏱️ Total Uptime', value: formatUptime(Date.now() - botStartTime), inline: true },
+                            { name: '📝 Total Reports', value: `${statusMessageCount}`, inline: true }
+                        );
+                    await monitoringChannel.send({ embeds: [shutdownEmbed] });
+                }
+            } catch (error) {
+                console.error('Error sending shutdown message:', error);
+            }
+
+            if (geminiChat && geminiChat.saveConversations) {
+                geminiChat.saveConversations();
+            }
+            process.exit(0);
         }
-        process.exit(0);
     };
 
     process.on('SIGINT', gracefulShutdown);
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGUSR2', gracefulShutdown);
-    
+
     // Windows-specific: handle when the terminal window is closed
     if (process.platform === 'win32') {
         process.on('SIGHUP', gracefulShutdown);

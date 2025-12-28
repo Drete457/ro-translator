@@ -9,10 +9,11 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import SelectedFaction from './components/select-faction';
-import { Faction, PlayerFormData } from './types';
+import { Faction, PlayerFormData, PlayerScanData } from './types';
 import Form from './components/form';
 import { logo } from './assets';
 import { MeritsForm, TabPanel, LandingScreen } from './components';
+import ScanReadOnlyPanel from './components/scan-readonly-panel';
 import getFirebase from './api/firebase';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 
@@ -24,6 +25,7 @@ const App = () => {
   const [tabValue, setTabValue] = useState<number>(0);
   const [entryStep, setEntryStep] = useState<EntryStep>('landing');
   const [existingUserData, setExistingUserData] = useState<PlayerFormData | null>(null);
+  const [scanData, setScanData] = useState<PlayerScanData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,16 +65,54 @@ const App = () => {
     }
   };
 
+  const fetchScanDataById = async (userId: string): Promise<PlayerScanData | null> => {
+    try {
+      const db = await getFirebase();
+      const scansCollection = collection(db, 'playersScans');
+
+      let q = query(
+        scansCollection,
+        where('userId', '==', Number(userId)),
+        orderBy('timestampScan', 'desc'),
+        limit(1)
+      );
+
+      let snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        q = query(
+          scansCollection,
+          where('userId', '==', userId),
+          orderBy('timestampScan', 'desc'),
+          limit(1)
+        );
+
+        snapshot = await getDocs(q);
+      }
+
+      if (snapshot.empty) return null;
+
+      return snapshot.docs[0].data() as PlayerScanData;
+    } catch (err) {
+      console.error('Error fetching scan data:', err);
+      return null;
+    }
+  };
+
   const handleSearch = async (userId: string) => {
     setLoading(true);
     setError('');
 
     try {
-      const userData = await fetchUserDataById(userId);
+      const [userData, scan] = await Promise.all([
+        fetchUserDataById(userId),
+        fetchScanDataById(userId)
+      ]);
 
       if (userData) {
         setExistingUserData(userData);
         setSelectedFaction(userData.faction as Faction);
+        setScanData(scan || null);
         setEntryStep('forms');
       } else {
         setError('User not found. Please check your User ID or start as a new player.');
@@ -88,6 +128,7 @@ const App = () => {
   const handleNewPlayer = () => {
     setEntryStep('faction-selection');
     setExistingUserData(null);
+    setScanData(null);
   };
 
   const handleFactionSelect = (faction: Faction | null) => {
@@ -109,6 +150,7 @@ const App = () => {
     setEntryStep('landing');
     setSelectedFaction(null);
     setExistingUserData(null);
+    setScanData(null);
     setError('');
     setTabValue(0);
   };
@@ -209,6 +251,8 @@ const App = () => {
                   onBackToStart={handleBackToStart}
                 />
               </TabPanel>
+
+              <ScanReadOnlyPanel scanData={scanData} />
             </>
           )}
         </Paper>
