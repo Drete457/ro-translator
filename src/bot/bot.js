@@ -91,6 +91,30 @@ try {
         return map;
     };
 
+    const sanitizeScanRecord = (record) => {
+        // Merge known scan fields with the incoming record, forcing undefined/null to ""
+        const merged = { ...playerScanHeader, ...record };
+        const sanitized = {};
+        Object.entries(merged).forEach(([k, v]) => {
+            sanitized[k] = v === undefined || v === null ? '' : v;
+        });
+
+        // Final sweep: if any leftover undefined slips through, force to ""
+        Object.keys(sanitized).forEach((k) => {
+            if (sanitized[k] === undefined) sanitized[k] = '';
+        });
+
+        return sanitized;
+    };
+
+    const cleanPayloadValues = (obj) => {
+        const cleaned = {};
+        Object.entries(obj).forEach(([k, v]) => {
+            cleaned[k] = v === undefined || v === null ? '' : v;
+        });
+        return cleaned;
+    };
+
     const fetchLatestScansMap = async (db, dateFilter) => {
         let scansQueryRef;
         if (dateFilter) {
@@ -212,17 +236,48 @@ try {
 
                         const db = await getFirebase();
                         let processed = 0;
+                        let failed = 0;
+                        const failedDetails = [];
 
                         for (const record of records) {
                             const userKey = String(record.userId);
                             const scanRef = doc(collection(db, "playersScans"), userKey);
-                            await setDoc(scanRef, { ...playerScanHeader, ...record, timestampScan: record.timestampScan || new Date().toISOString() }, { merge: true });
-                            processed += 1;
+                            const sanitized = sanitizeScanRecord(record);
+                            const payload = cleanPayloadValues({
+                                ...sanitized,
+                                timestampScan: record.timestampScan || new Date().toISOString(),
+                                source: 'excel'
+                            });
+
+                            // Safety net: log and skip if anything still undefined after cleaning
+                            const stillUndefined = Object.entries(payload)
+                                .filter(([, v]) => v === undefined)
+                                .map(([k]) => k);
+                            if (stillUndefined.length) {
+                                failed += 1;
+                                failedDetails.push({ userId: userKey, error: `Undefined fields: ${stillUndefined.join(', ')}` });
+                                console.error(`Skipped import for userId=${userKey} due to undefined fields`, { payload, stillUndefined });
+                                continue;
+                            }
+
+                            const cleanPayload = payload;
+
+                            try {
+                                await setDoc(scanRef, cleanPayload, { merge: true });
+                                processed += 1;
+                            } catch (writeErr) {
+                                failed += 1;
+                                failedDetails.push({ userId: userKey, error: writeErr?.message || writeErr });
+                                console.error(`Failed to import userId=${userKey}`, { payload: cleanPayload, error: writeErr });
+                            }
                         }
 
                         let reply = `✅ Import complete: ${processed} players updated.`;
+                        if (failed > 0) {
+                            reply += `\n⚠️ Rows failed to save: ${failed}`;
+                        }
                         if (errors && errors.length) {
-                            reply += `\n⚠️ Rows with errors: ${errors.length}`;
+                            reply += `\n⚠️ Rows with parse errors: ${errors.length}`;
                         }
                         await message.channel.send(reply);
                     } catch (err) {
