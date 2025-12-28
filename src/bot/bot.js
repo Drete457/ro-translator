@@ -364,7 +364,7 @@ try {
                     commands += "`!clan-summary` - Complete clan capabilities summary\n";
 
                     if (message.author.id === discordOwnerId) {
-                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`, `!send_meme`, '!players-import <file>`\n";
+                        commands += "\n**Admin Commands:** `!conversations_stats`, `!save_conversations`, `!goodbye`, `!sync_calendar`, `!list_calendar`, `!send_meme`, `!players-import <file>`\n";
                     }
 
                     await safeSendMessage(message.channel, commands, { fallbackUser: message.author });
