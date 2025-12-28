@@ -2561,6 +2561,18 @@ try {
     client.once(Events.ClientReady, async () => {
         console.log(`Bot is ready! Logged in as ${client.user.tag}`);
 
+        try {
+            const db = await getFirebase();
+            const lockRef = doc(collection(db, CONSTANTS.LOCK_COLLECTION), CONSTANTS.LOCK_DOC);
+            const lockSnap = await getDoc(lockRef);
+            if (lockSnap.exists() && lockSnap.data().expiresAt < Date.now()) {
+                await setDoc(lockRef, { expiresAt: 0 }, { merge: true });
+                console.log('Cleared stale import lock on startup');
+            }
+        } catch (lockInitErr) {
+            console.error('Failed to check/clear import lock on startup', lockInitErr);
+        }
+
         if (!isInDevelopment) {
             // Send initial startup message
             try {
