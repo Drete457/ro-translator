@@ -20,7 +20,7 @@ const stringValue = (value) => {
 };
 
 const playerScanHeader = Object.freeze({
-  // Use empty strings instead of undefined to avoid Firestore rejections.
+  // Use empty strings instead of undefined to avoid Firestore rejections at write time.
   currentPowerScan: '',
   powerScan: '',
   divisionScan: '',
@@ -42,7 +42,8 @@ const playerScanHeader = Object.freeze({
   victoriesScan: '',
   defeatsScan: '',
   citySiegesScan: '',
-  coutedScan: '',
+  scoutedScan: '',
+  coutedScan: '', // legacy alias
   helpsGivenScan: '',
   goldScan: '',
   goldSpentScan: '',
@@ -85,7 +86,8 @@ const COLUMN_MAP = {
   'victories': 'victoriesScan',
   'defeats': 'defeatsScan',
   'city sieges': 'citySiegesScan',
-  'couted': 'coutedScan',
+  'scouted': 'scoutedScan',
+  'couted': 'scoutedScan',
   'helps given': 'helpsGivenScan',
   'gold': 'goldScan',
   'gold spent': 'goldSpentScan',

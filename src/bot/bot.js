@@ -16,7 +16,7 @@ const {
     GuildScheduledEventEntityType,
     GuildScheduledEventStatus
 } = require("discord.js");
-const { getFirebase, collection, getDocs, query, where, orderBy, doc, setDoc } = require('./firebase');
+const { getFirebase, collection, getDocs, query, where, orderBy, doc, setDoc, writeBatch, runTransaction, getDoc } = require('./firebase');
 const { analyzePlayerTimezones } = require('./helpers/timezone-analyzer');
 const { createExcelFile } = require('./create-excel-file');
 const { playerInfo } = require('./helpers/excel-header');
@@ -70,6 +70,16 @@ try {
     // Alliance Entertainment instance (will be initialized after client is ready)
     let allianceEntertainment = null;
 
+    const CONSTANTS = {
+        COLLECTION_SCANS: 'playersScans',
+        COLLECTION_PLAYERS: 'playersInfo',
+        SOURCE_EXCEL: 'excel',
+        LOCK_DOC: 'playersImport',
+        LOCK_COLLECTION: 'locks',
+        MAX_FILE_SIZE: 10 * 1024 * 1024, // 10 MB
+        ALLOWED_ROLE_ID: process.env.DISCORD_ADMIN_ROLE_ID
+    };
+
     const playerInfoWithScanHeader = { ...playerInfo, ...playerScanHeader };
 
     const isDataChannel = (channelId) => channelId === channelData || channelId === channelDataTest;
@@ -98,12 +108,9 @@ try {
         Object.entries(merged).forEach(([k, v]) => {
             sanitized[k] = v === undefined || v === null ? '' : v;
         });
-
-        // Final sweep: if any leftover undefined slips through, force to ""
-        Object.keys(sanitized).forEach((k) => {
-            if (sanitized[k] === undefined) sanitized[k] = '';
-        });
-
+        if (!sanitized.scoutedScan && sanitized.coutedScan) {
+            sanitized.scoutedScan = sanitized.coutedScan;
+        }
         return sanitized;
     };
 
@@ -210,8 +217,11 @@ try {
                         return;
                     }
 
-                    if (message.author.id !== discordOwnerId) {
-                        await message.channel.send("❌ Only the owner can run this command.");
+                    const member = message.member;
+                    const hasRolePermission = CONSTANTS.ALLOWED_ROLE_ID && member?.roles?.cache?.has(CONSTANTS.ALLOWED_ROLE_ID);
+                    const isOwner = message.author.id === discordOwnerId;
+                    if (!isOwner && !hasRolePermission) {
+                        await message.channel.send("❌ Only the owner or authorized role can run this command.");
                         return;
                     }
 
@@ -231,54 +241,89 @@ try {
                         importInProgress = true;
                         await message.channel.sendTyping();
 
+                        if (attachment.size && attachment.size > CONSTANTS.MAX_FILE_SIZE) {
+                            await message.channel.send("File too large. Max 10MB.");
+                            return;
+                        }
+
                         const response = await fetch(attachment.url);
                         const arrayBuffer = await response.arrayBuffer();
                         const buffer = Buffer.from(arrayBuffer);
 
                         const { records, errors } = await parsePlayersScanExcel(buffer);
 
+                        // Minimal structure check: require at least a userId column parsed
                         if (!records.length) {
                             const errMsg = errors && errors.length ? `\nErrors: ${errors.join('; ')}` : '';
-                            await message.channel.send(`No valid rows found.${errMsg}`);
+                            await message.channel.send(`No valid rows found.${errMsg || '\nMissing required column: Lord ID / userId?'}`);
                             return;
                         }
 
                         const db = await getFirebase();
+
+                        // Firestore-based lock to avoid concurrent imports across processes
+                        const lockRef = doc(collection(db, CONSTANTS.LOCK_COLLECTION), CONSTANTS.LOCK_DOC);
+                        const lockTtlMs = 10 * 60 * 1000; // 10 minutes
+                        await runTransaction(db, async (tx) => {
+                            const snap = await tx.get(lockRef);
+                            const now = Date.now();
+                            const expiresAt = snap.exists() ? snap.data().expiresAt || 0 : 0;
+                            if (snap.exists() && expiresAt > now) {
+                                throw new Error('Import already in progress');
+                            }
+                            tx.set(lockRef, { lockedAt: now, expiresAt: now + lockTtlMs });
+                        });
                         let processed = 0;
                         let failed = 0;
                         const failedDetails = [];
+                        let lastProgressNotified = 0;
 
-                        for (const record of records) {
-                            const userKey = String(record.userId);
-                            const sanitized = sanitizeScanRecord(record);
-                            const payload = cleanPayloadValues({
-                                ...sanitized,
-                                userId: userKey,
-                                timestampScan: record.timestampScan || new Date().toISOString(),
-                                source: 'excel'
+                        // Batch writes in chunks to avoid partial commits and reduce round trips
+                        const chunkSize = 400;
+                        for (let i = 0; i < records.length; i += chunkSize) {
+                            const batch = writeBatch(db);
+                            let addedThisBatch = 0;
+                            const slice = records.slice(i, i + chunkSize);
+
+                            slice.forEach((record) => {
+                                const userKey = String(record.userId);
+                                const sanitized = sanitizeScanRecord(record);
+                                const payload = cleanPayloadValues({
+                                    ...sanitized,
+                                    userId: userKey,
+                                    timestampScan: record.timestampScan || new Date().toISOString(),
+                                    source: CONSTANTS.SOURCE_EXCEL
+                                });
+
+                                const stillUndefined = Object.entries(payload)
+                                    .filter(([, v]) => v === undefined)
+                                    .map(([k]) => k);
+                                if (stillUndefined.length) {
+                                    failed += 1;
+                                    failedDetails.push({ userId: userKey, error: `Undefined fields: ${stillUndefined.join(', ')}` });
+                                    console.error(`Skipped import for userId=${userKey} due to undefined fields`, { payload, stillUndefined });
+                                    return;
+                                }
+
+                                const scanRef = doc(collection(db, CONSTANTS.COLLECTION_SCANS));
+                                batch.set(scanRef, payload);
+                                processed += 1;
+                                addedThisBatch += 1;
                             });
 
-                            // Safety net: log and skip if anything still undefined after cleaning
-                            const stillUndefined = Object.entries(payload)
-                                .filter(([, v]) => v === undefined)
-                                .map(([k]) => k);
-                            if (stillUndefined.length) {
-                                failed += 1;
-                                failedDetails.push({ userId: userKey, error: `Undefined fields: ${stillUndefined.join(', ')}` });
-                                console.error(`Skipped import for userId=${userKey} due to undefined fields`, { payload, stillUndefined });
-                                continue;
-                            }
-
-                            const cleanPayload = payload;
-
                             try {
-                                const scanRef = doc(collection(db, "playersScans"));
-                                await setDoc(scanRef, cleanPayload);
-                                processed += 1;
+                                await batch.commit();
+                                lastProgressNotified += addedThisBatch;
+                                if (lastProgressNotified >= 200) {
+                                    await message.channel.send(`Processing: ${Math.min(i + chunkSize, records.length)}/${records.length}...`);
+                                    lastProgressNotified = 0;
+                                }
                             } catch (writeErr) {
-                                failed += 1;
-                                failedDetails.push({ userId: userKey, error: writeErr?.message || writeErr });
-                                console.error(`Failed to import userId=${userKey}`, { payload: cleanPayload, error: writeErr });
+                                // roll back counts for this batch, log failure
+                                processed -= addedThisBatch;
+                                failed += addedThisBatch;
+                                failedDetails.push({ batch: `${i}-${i + slice.length}`, error: writeErr?.message || writeErr });
+                                console.error(`Failed batch ${i}-${i + slice.length}`, { error: writeErr });
                             }
                         }
 
@@ -292,9 +337,17 @@ try {
                         await message.channel.send(reply);
                     } catch (err) {
                         console.error("Error in !players-import:", err);
-                        await message.channel.send("❌ Error importing the file. Please try again.");
+                        const errMsg = err?.message === 'Import already in progress' ? 'Import already in progress elsewhere. Try again in a moment.' : '❌ Error importing the file. Please try again.';
+                        await message.channel.send(errMsg);
                     } finally {
                         importInProgress = false;
+                        try {
+                            const db = await getFirebase();
+                            const lockRef = doc(collection(db, CONSTANTS.LOCK_COLLECTION), CONSTANTS.LOCK_DOC);
+                            await setDoc(lockRef, { expiresAt: 0 }, { merge: true });
+                        } catch (lockClearErr) {
+                            console.error('Failed to clear import lock', lockClearErr);
+                        }
                     }
 
                     return;

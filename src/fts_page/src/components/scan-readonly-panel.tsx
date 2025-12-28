@@ -1,5 +1,5 @@
 import { FC, useMemo } from 'react';
-import { Paper, Typography, Grid, Stack, Box } from '@mui/material';
+import { Paper, Typography, Grid, Stack, Box, Chip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { PlayerScanData } from '../types';
 
@@ -29,7 +29,8 @@ const fields: Array<{ key: keyof PlayerScanData; label: string }> = [
   { key: 'victoriesScan', label: 'Victories (scan)' },
   { key: 'defeatsScan', label: 'Defeats (scan)' },
   { key: 'citySiegesScan', label: 'City Sieges (scan)' },
-  { key: 'coutedScan', label: 'Couted (scan)' },
+  { key: 'scoutedScan', label: 'Scouted (scan)' },
+  { key: 'coutedScan', label: 'Couted (legacy) (scan)' },
   { key: 'helpsGivenScan', label: 'Helps Given (scan)' },
   { key: 'goldScan', label: 'Gold (scan)' },
   { key: 'goldSpentScan', label: 'Gold Spent (scan)' },
@@ -71,6 +72,17 @@ const ScanReadOnlyPanel: FC<ScanReadOnlyPanelProps> = ({ scanData }) => {
       .filter((field) => field.value !== undefined && field.value !== null && field.value !== '');
   }, [scanData]);
 
+  const ageInfo = useMemo(() => {
+    if (!scanData?.timestampScan) return null;
+    const ts = new Date(scanData.timestampScan).getTime();
+    if (Number.isNaN(ts)) return null;
+    const ageDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
+    return {
+      ageDays,
+      isStale: ageDays > 7
+    };
+  }, [scanData]);
+
   if (!scanData || visibleFields.length === 0) return null;
 
   return (
@@ -89,9 +101,14 @@ const ScanReadOnlyPanel: FC<ScanReadOnlyPanelProps> = ({ scanData }) => {
             Scan Data (read-only)
           </Typography>
           {scanData.timestampScan && (
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-              Last scan: {formatValue('timestampScan', scanData.timestampScan)}
-            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                Last scan: {formatValue('timestampScan', scanData.timestampScan)}
+              </Typography>
+              {ageInfo?.isStale && (
+                <Chip size="small" color="warning" label={`Stale (${ageInfo.ageDays.toFixed(1)}d)`} />
+              )}
+            </Stack>
           )}
         </Box>
 

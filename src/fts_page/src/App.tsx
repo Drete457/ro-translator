@@ -16,6 +16,12 @@ import { MeritsForm, TabPanel, LandingScreen } from './components';
 import ScanReadOnlyPanel from './components/scan-readonly-panel';
 import getFirebase from './api/firebase';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+  const isValidScanData = (data: unknown): data is PlayerScanData => {
+    if (!data || typeof data !== 'object') return false;
+    const maybe = data as PlayerScanData;
+    return 'userId' in maybe;
+  };
+
 
 type EntryStep = 'landing' | 'faction-selection' | 'forms';
 
@@ -70,29 +76,38 @@ const App = () => {
       const db = await getFirebase();
       const scansCollection = collection(db, 'playersScans');
 
-      let q = query(
-        scansCollection,
-        where('userId', '==', Number(userId)),
-        orderBy('timestampScan', 'desc'),
-        limit(1)
-      );
+      const ids: Array<string | number> = [];
+      const asNumber = Number(userId);
+      if (Number.isFinite(asNumber)) ids.push(asNumber);
+      ids.push(userId);
 
-      let snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        q = query(
+      let snapshot = null;
+      try {
+        // Preferred: single query with orderBy + limit (requires composite index)
+        const q = query(
           scansCollection,
-          where('userId', '==', userId),
+          where('userId', 'in', ids.slice(0, 10)),
           orderBy('timestampScan', 'desc'),
           limit(1)
         );
-
         snapshot = await getDocs(q);
+      } catch (e) {
+        // Fallback to two queries (number, then string) if index missing
+        const qNum = Number.isFinite(asNumber)
+          ? query(scansCollection, where('userId', '==', asNumber), orderBy('timestampScan', 'desc'), limit(1))
+          : null;
+        snapshot = qNum ? await getDocs(qNum) : null;
+
+        if (!snapshot || snapshot.empty) {
+          const qStr = query(scansCollection, where('userId', '==', userId), orderBy('timestampScan', 'desc'), limit(1));
+          snapshot = await getDocs(qStr);
+        }
       }
 
-      if (snapshot.empty) return null;
+      if (!snapshot || snapshot.empty) return null;
 
-      return snapshot.docs[0].data() as PlayerScanData;
+      const data = snapshot.docs[0].data();
+      return isValidScanData(data) ? data : null;
     } catch (err) {
       console.error('Error fetching scan data:', err);
       return null;

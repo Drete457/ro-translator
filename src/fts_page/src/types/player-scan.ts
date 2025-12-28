@@ -22,7 +22,8 @@ interface PlayerScanData {
   victoriesScan?: number;
   defeatsScan?: number;
   citySiegesScan?: number;
-  coutedScan?: number;
+  scoutedScan?: number;
+  coutedScan?: number; // legacy/alias
   helpsGivenScan?: number;
   goldScan?: number;
   goldSpentScan?: number;
