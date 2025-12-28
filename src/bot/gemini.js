@@ -40,7 +40,7 @@ class GeminiChat {
         If you don't know something specific about Call of Dragons, be honest and offer general leadership help.`;
 
         this.model = this.genAI.getGenerativeModel({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-3-flash-preview",
             systemInstruction: this.systemPrompt 
         });
     }
@@ -291,7 +291,7 @@ class GeminiChat {
             }
 
             const visionModel = this.genAI.getGenerativeModel({
-                model: "gemini-2.5-flash-lite",
+                model: "gemini-3-flash-preview",
                 systemInstruction: this.systemPrompt 
             });
 
