@@ -9,12 +9,19 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import SelectedFaction from './components/select-faction';
-import { Faction, PlayerFormData } from './types';
+import { Faction, PlayerFormData, PlayerScanData } from './types';
 import Form from './components/form';
 import { logo } from './assets';
 import { MeritsForm, TabPanel, LandingScreen } from './components';
+import ScanReadOnlyPanel from './components/scan-readonly-panel';
 import getFirebase from './api/firebase';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+  const isValidScanData = (data: unknown): data is PlayerScanData => {
+    if (!data || typeof data !== 'object') return false;
+    const maybe = data as PlayerScanData;
+    return 'userId' in maybe;
+  };
+
 
 type EntryStep = 'landing' | 'faction-selection' | 'forms';
 
@@ -24,6 +31,7 @@ const App = () => {
   const [tabValue, setTabValue] = useState<number>(0);
   const [entryStep, setEntryStep] = useState<EntryStep>('landing');
   const [existingUserData, setExistingUserData] = useState<PlayerFormData | null>(null);
+  const [scanData, setScanData] = useState<PlayerScanData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,16 +71,63 @@ const App = () => {
     }
   };
 
+  const fetchScanDataById = async (userId: string): Promise<PlayerScanData | null> => {
+    try {
+      const db = await getFirebase();
+      const scansCollection = collection(db, 'playersScans');
+
+      const ids: Array<string | number> = [];
+      const asNumber = Number(userId);
+      if (Number.isFinite(asNumber)) ids.push(asNumber);
+      ids.push(userId);
+
+      let snapshot = null;
+      try {
+        // Preferred: single query with orderBy + limit (requires composite index)
+        const q = query(
+          scansCollection,
+          where('userId', 'in', ids.slice(0, 10)),
+          orderBy('timestampScan', 'desc'),
+          limit(1)
+        );
+        snapshot = await getDocs(q);
+      } catch (e) {
+        // Fallback to two queries (number, then string) if index missing
+        const qNum = Number.isFinite(asNumber)
+          ? query(scansCollection, where('userId', '==', asNumber), orderBy('timestampScan', 'desc'), limit(1))
+          : null;
+        snapshot = qNum ? await getDocs(qNum) : null;
+
+        if (!snapshot || snapshot.empty) {
+          const qStr = query(scansCollection, where('userId', '==', userId), orderBy('timestampScan', 'desc'), limit(1));
+          snapshot = await getDocs(qStr);
+        }
+      }
+
+      if (!snapshot || snapshot.empty) return null;
+
+      const data = snapshot.docs[0].data();
+      return isValidScanData(data) ? data : null;
+    } catch (err) {
+      console.error('Error fetching scan data:', err);
+      return null;
+    }
+  };
+
   const handleSearch = async (userId: string) => {
     setLoading(true);
     setError('');
 
     try {
-      const userData = await fetchUserDataById(userId);
+      const [userData, scan] = await Promise.all([
+        fetchUserDataById(userId),
+        fetchScanDataById(userId)
+      ]);
 
       if (userData) {
         setExistingUserData(userData);
         setSelectedFaction(userData.faction as Faction);
+        setScanData(scan || null);
         setEntryStep('forms');
       } else {
         setError('User not found. Please check your User ID or start as a new player.');
@@ -88,6 +143,7 @@ const App = () => {
   const handleNewPlayer = () => {
     setEntryStep('faction-selection');
     setExistingUserData(null);
+    setScanData(null);
   };
 
   const handleFactionSelect = (faction: Faction | null) => {
@@ -109,6 +165,7 @@ const App = () => {
     setEntryStep('landing');
     setSelectedFaction(null);
     setExistingUserData(null);
+    setScanData(null);
     setError('');
     setTabValue(0);
   };
@@ -209,6 +266,8 @@ const App = () => {
                   onBackToStart={handleBackToStart}
                 />
               </TabPanel>
+
+              <ScanReadOnlyPanel scanData={scanData} />
             </>
           )}
         </Paper>

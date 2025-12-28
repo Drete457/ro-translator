@@ -13,9 +13,14 @@ const createExcelFile = async (header, data, fileName, title) => {
     return filePath;
   }
 
-  const formattedHeaders = Object.keys({ ...header, timestamp: 0 }).map(key =>
-    key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim()
-  );
+  const formattedHeaders = Object.keys({ ...header, timestamp: 0 }).map(key => {
+    if (key.endsWith('Scan')) {
+      const base = key.replace(/Scan$/, '').replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
+      return `${base} (scan)`;
+    }
+
+    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
+  });
 
   const headerMapping = {};
   Object.keys({ ...header, timestamp: 0 }).forEach((key, index) => {
