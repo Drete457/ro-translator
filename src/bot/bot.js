@@ -197,10 +197,10 @@ try {
                 try {
                     const conversationId = `dm_${message.author.id}`;
                     const response = await geminiChat.chat(message.content, conversationId);
-                    message.author.send(response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
+                    await sendChunked(message.author, response).catch(dmError => console.log("Error sending DM response to user:", message.author.id, dmError));
                 } catch (chatError) {
                     console.log("Error getting response from Gemini:", chatError);
-                    message.author.send("Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
+                    await sendChunked(message.author, "Sorry, I couldn't process your message at the moment.").catch(dmError => console.log("Error sending DM error message to user:", message.author.id, dmError));
                 }
                 return;
             }
@@ -2169,6 +2169,51 @@ try {
         }
     }
 
+    const MAX_DISCORD_MESSAGE_LENGTH = 2000;
+
+    const splitIntoChunks = (text, size = MAX_DISCORD_MESSAGE_LENGTH) => {
+        const chunks = [];
+        let start = 0;
+        while (start < text.length) {
+            chunks.push(text.slice(start, start + size));
+            start += size;
+        }
+        return chunks;
+    };
+
+    const sendChunked = async (target, payload) => {
+        if (!target || typeof target.send !== 'function') {
+            throw new Error('Invalid target for sendChunked');
+        }
+
+        const isStringPayload = typeof payload === 'string';
+
+        if (isStringPayload) {
+            if (payload.length <= MAX_DISCORD_MESSAGE_LENGTH) {
+                return await target.send(payload);
+            }
+
+            const chunks = splitIntoChunks(payload);
+            let lastMessage;
+            for (const chunk of chunks) {
+                lastMessage = await target.send(chunk);
+            }
+            return lastMessage;
+        }
+
+        if (payload && typeof payload.content === 'string' && payload.content.length > MAX_DISCORD_MESSAGE_LENGTH) {
+            const { content, ...rest } = payload;
+            const chunks = splitIntoChunks(content);
+            let lastMessage;
+            for (const chunk of chunks) {
+                lastMessage = await target.send({ ...rest, content: chunk });
+            }
+            return lastMessage;
+        }
+
+        return await target.send(payload);
+    };
+
     const safeSendMessage = async (channel, content, options = {}) => {
         try {
             if (!canBotSendMessages(channel)) {
@@ -2177,7 +2222,7 @@ try {
                     try {
                         const fallbackContent = typeof content === 'string' ? content :
                             (content.content || 'Response message');
-                        await options.fallbackUser.send(`⚠️ I couldn't send a message in that channel due to permissions. Here's what I wanted to say:\n\n${fallbackContent}`);
+                        await sendChunked(options.fallbackUser, `⚠️ I couldn't send a message in that channel due to permissions. Here's what I wanted to say:\n\n${fallbackContent}`);
                     } catch (dmError) {
                         console.error('Failed to send DM fallback:', dmError.message);
                     }
@@ -2186,9 +2231,9 @@ try {
             }
 
             if (typeof content === 'string') {
-                return await channel.send(content);
+                return await sendChunked(channel, content);
             } else {
-                return await channel.send(content);
+                return await sendChunked(channel, content);
             }
         } catch (error) {
             console.error(`Error sending message to channel ${channel.id}:`, error.message);
@@ -2197,7 +2242,7 @@ try {
                 try {
                     const fallbackContent = typeof content === 'string' ? content :
                         (content.content || 'Response message');
-                    await options.fallbackUser.send(`⚠️ I couldn't send a message in that channel due to permissions. Here's what I wanted to say:\n\n${fallbackContent}`);
+                    await sendChunked(options.fallbackUser, `⚠️ I couldn't send a message in that channel due to permissions. Here's what I wanted to say:\n\n${fallbackContent}`);
                 } catch (dmError) {
                     console.error('Failed to send DM fallback:', dmError.message);
                 }
